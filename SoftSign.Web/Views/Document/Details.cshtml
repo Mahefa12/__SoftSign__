@@ -552,25 +552,34 @@
         }
 
         // Convert zone positions from percentages to pixels on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Page dimensions from ViewBag (default A4 size in points: 595.28 x 841.89)
-            const pageWidth = @((double)(ViewBag.PageWidth ?? 595.28));
-            const pageHeight = @((double)(ViewBag.PageHeight ?? 841.89));
-
+        function renderZones() {
+            // Get all pdf page containers
+            const pageContainers = document.querySelectorAll('.pdf-page-container');
+            
             // Get all signature zones
             const zones = document.querySelectorAll('.signature-zone');
             zones.forEach(zone => {
+                const pageNum = zone.dataset.zonePage;
                 const x = parseFloat(zone.dataset.zoneX) || 0;
                 const y = parseFloat(zone.dataset.zoneY) || 0;
                 const width = parseFloat(zone.dataset.zoneWidth) || 0;
                 const height = parseFloat(zone.dataset.zoneHeight) || 0;
 
-                // Convert from percentages to pixels
-                zone.style.left = (x * pageWidth) + 'px';
-                zone.style.top = (y * pageHeight) + 'px';
-                zone.style.width = (width * pageWidth) + 'px';
-                zone.style.height = (height * pageHeight) + 'px';
+                // Find the corresponding page container
+                const container = document.querySelector(`.pdf-page-container[data-page-number="${pageNum}"]`);
+                if (container) {
+                    const rect = container.getBoundingClientRect();
+                    
+                    // Convert from percentages to pixels using actual container dimensions
+                    zone.style.left = (x * rect.width) + 'px';
+                    zone.style.top = (y * rect.height) + 'px';
+                    zone.style.width = (width * rect.width) + 'px';
+                    zone.style.height = (height * rect.height) + 'px';
+                }
             });
-        });
+        }
+
+        // Render zones after the page loads to ensure containers have their final dimensions
+        window.addEventListener('load', renderZones);
     </script>
 }
