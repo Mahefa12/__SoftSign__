@@ -642,16 +642,28 @@
 
             const formData = new FormData(form);
 
-            // Convert zonePositions to array
-            const zonesArray = Object.values(zonePositions || {});
+            // Get the preview container for coordinate normalization
+            const preview = document.getElementById("previewContainer");
+            const rect = preview.getBoundingClientRect();
+
+            // Convert zonePositions to array and normalize to percentages
+            const normalizedZones = Object.values(zonePositions || {}).map(z => ({
+                zoneId: z.zoneId,
+                stepId: z.stepId,
+                signerRole: z.signerRole,
+                x: z.x / rect.width,
+                y: z.y / rect.height,
+                width: z.width / rect.width,
+                height: z.height / rect.height
+            }));
 
             // Serialize to JSON
-            const zonesJson = JSON.stringify(zonesArray);
+            const zonesJson = JSON.stringify(normalizedZones);
 
             // Append to form data
             formData.append("signatureZones", zonesJson);
 
-            console.log("Sending zones:", zonesJson);
+            console.log("Sending zones (as percentages):", zonesJson);
 
             try {
                 const response = await fetch(form.action, {
