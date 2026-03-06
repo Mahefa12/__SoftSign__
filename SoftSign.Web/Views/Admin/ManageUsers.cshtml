@@ -1,0 +1,143 @@
+@model IEnumerable<SoftSign.Web.Controllers.UserManagementViewModel>
+
+@{
+    ViewData["Title"] = "Gérer les utilisateurs";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-people"></i>
+        Gérer les utilisateurs
+    </h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <!-- Filters -->
+        <form asp-action="ManageUsers" method="get" class="filters-bar">
+            <div class="search-input">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="Rechercher des utilisateurs..." value="@ViewBag.Search" />
+                </div>
+            </div>
+            <select name="role" class="form-select">
+                <option value="">Tous les rôles</option>
+                @if (ViewBag.Roles != null)
+                {
+                    @foreach (var role in ViewBag.Roles)
+                    {
+                        <option value="@role" selected="@(ViewBag.Role == role)">@role</option>
+                    }
+                }
+            </select>
+            <button type="submit" class="btn btn-outline">
+                <i class="bi bi-funnel me-1"></i>Filtrer
+            </button>
+            <span class="filters-results ms-auto">@ViewBag.TotalCount utilisateurs</span>
+        </form>
+
+        <!-- Users Table -->
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Utilisateur</th>
+                        <th>Rôles</th>
+                        <th>Statut</th>
+                        <th>Inscrit le</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">
+                                        <i class="bi bi-people"></i>
+                                    </div>
+                                    <h4 class="empty-state-title">Aucun utilisateur trouvé</h4>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var user in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="user-avatar" style="width: 40px; height: 40px; font-size: 14px;">
+                                            @user.FirstName?.Substring(0, 1)@user.LastName?.Substring(0, 1)
+                                        </div>
+                                        <div>
+                                            <div class="fw-semibold">@user.FirstName @user.LastName</div>
+                                            <small class="text-muted">@user.Email</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <span class="badge badge-@GetRoleBadgeClass(role)">@role</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge badge-@(user.IsActive ? "completed" : "draft")">
+                                        @(user.IsActive ? "Actif" : "Inactif")
+                                    </span>
+                                </td>
+                                <td>
+                                    @user.CreatedAt.ToString("MMM dd, yyyy")
+                                </td>
+                                <td>
+                                    <form asp-action="ToggleUserStatus" method="post" class="d-inline">
+                                        <input type="hidden" name="id" value="@user.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-@(user.IsActive ? "warning" : "success")" title="@(user.IsActive ? "Désactiver" : "Activer")">
+                                            <i class="bi bi-@(user.IsActive ? "person-dash" : "person-check")"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        @if (ViewBag.TotalPages > 1)
+        {
+            <nav>
+                <ul class="pagination">
+                    <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" asp-action="ManageUsers" asp-route-page="1" asp-route-search="@ViewBag.Search" asp-route-role="@ViewBag.Role">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                    {
+                        <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                            <a class="page-link" asp-action="ManageUsers" asp-route-page="@i" asp-route-search="@ViewBag.Search" asp-route-role="@ViewBag.Role">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
+                        <a class="page-link" asp-action="ManageUsers" asp-route-page="@ViewBag.TotalPages" asp-route-search="@ViewBag.Search" asp-route-role="@ViewBag.Role">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+@functions {
+    string GetRoleBadgeClass(string role)
+    {
+        return role == "Admin" || role == "SuperAdmin" ? "rejected" : "pending";
+    }
+}

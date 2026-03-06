@@ -1,0 +1,174 @@
+@model SoftSign.Application.DTOs.DocumentDto
+@using SoftSign.Domain.Enums
+
+@{
+    ViewData["Title"] = "Réviser le document";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-clipboard-check"></i>
+        Réviser le document
+    </h2>
+    <a asp-action="Index" class="btn btn-outline">
+        <i class="bi bi-arrow-left me-2"></i>Retour à la liste
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- LEFT: Document Preview -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    @Model.Title
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="document-preview">
+                    <div class="document-preview-placeholder">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                        <p>Prévisualisation PDF</p>
+                        <small class="text-muted">@Model.OriginalFileName</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Document Info & Actions -->
+    <div class="col-lg-4">
+        <!-- Document Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-info-circle"></i>
+                    Détails du document
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Titre</span>
+                        <span class="info-value">@Model.Title</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Statut</span>
+                        <span class="badge badge-@GetStatusBadgeClass(Model.Status)">@Model.StatusDisplay</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Créé par</span>
+                        <span class="info-value">@Model.CreatedByName</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Créé le</span>
+                        <span class="info-value">@Model.CreatedAt.ToString("MMM dd, yyyy")</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Signatures</span>
+                        <span class="info-value">@Model.CompletedSignatureCount / @Model.SignatureCount</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Review Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-check2-square"></i>
+                    Actions de révision
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Approve Form -->
+                <form asp-action="Approve" method="post" class="mb-3">
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <div class="mb-2">
+                        <textarea name="comments" class="form-control" rows="2" placeholder="Ajouter un commentaire (optionnel)"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-check-circle me-2"></i>Approuver
+                    </button>
+                </form>
+
+                <!-- Reject Button -->
+                <button class="btn btn-danger w-100 mb-3" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                    <i class="bi bi-x-circle me-2"></i>Rejeter
+                </button>
+
+                <!-- Request Correction Button -->
+                <button class="btn btn-outline w-100" data-bs-toggle="modal" data-bs-target="#correctionModal" style="border-color: var(--color-warning); color: var(--color-warning);">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Demander une correction
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="Reject" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-header">
+                    <h5 class="modal-title">Rejeter le document</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Motif du rejet</label>
+                        <textarea name="reason" id="reason" class="form-control" rows="3" required placeholder="Veuillez fournir un motif de rejet..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-danger">Rejeter le document</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Correction Modal -->
+<div class="modal fade" id="correctionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="RequestCorrection" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-header">
+                    <h5 class="modal-title">Demander une correction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="feedback" class="form-label">Retour d'information</label>
+                        <textarea name="feedback" id="feedback" class="form-control" rows="3" required placeholder="Veuillez décrire les modifications nécessaires..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-outline" style="border-color: var(--color-warning); color: var(--color-warning);">Demander une correction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(DocumentStatus status)
+    {
+        return status switch
+        {
+            DocumentStatus.Draft => "draft",
+            DocumentStatus.Pending => "pending",
+            DocumentStatus.InProgress => "in-progress",
+            DocumentStatus.Completed => "completed",
+            DocumentStatus.Rejected => "rejected",
+            DocumentStatus.Expired => "draft",
+            _ => "draft"
+        };
+    }
+}

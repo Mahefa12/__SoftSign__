@@ -1,0 +1,673 @@
+@{
+    ViewData["Title"] = "Créer un document";
+    var workflows = ViewBag.Workflows as IEnumerable<SoftSign.Application.DTOs.WorkflowDto>;
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-upload"></i>
+        Créer un document
+    </h2>
+    <a asp-action="Index" class="btn btn-outline">
+        <i class="bi bi-arrow-left me-2"></i>Retour aux documents
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-upload"></i>
+                    Télécharger un document
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="uploadForm" asp-action="Upload" method="post" enctype="multipart/form-data">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    
+                    <!-- File Upload -->
+                    <div class="mb-4">
+                        <label class="form-label">Choisir un fichier</label>
+                        <div class="drop-zone p-5 text-center rounded" style="border: 2px dashed var(--color-border); background: var(--color-gray-light);">
+                            <i class="bi bi-cloud-upload text-gold" style="font-size: 3rem;"></i>
+                            <p class="mb-2 mt-2">Glissez-déposez votre fichier ici, ou</p>
+                            <input type="file" name="file" id="fileInput" class="form-control" accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt" required style="max-width: 400px; margin: 0 auto;" onchange="handleFileSelect(event)" />
+                            <p class="text-muted small mt-2 mb-0">Formats supportés : PDF, Word, Excel, PowerPoint, Texte (max 50 Mo)</p>
+                        </div>
+                        <div id="fileInfo" class="mt-3" style="display: none;">
+                            <div class="alert d-flex align-items-center" style="background: var(--color-gold-subtle); border: 1px solid var(--color-gold);">
+                                <i class="bi bi-file-earmark me-2 text-gold"></i>
+                                <span id="fileName" class="flex-grow-1"></span>
+                                <button type="button" class="btn btn-sm btn-link text-gold" onclick="clearFile()">Supprimer</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Preview Section -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--color-text); font-weight: 600;">
+                            <i class="bi bi-eye me-2 text-gold"></i>
+                            Aperçu du document
+                        </h5>
+                        <div id="previewContainer" class="preview-container" style="
+                            min-height: 800px;
+                            width: 100%;
+                            background: #FFFFFF;
+                            border-radius: 12px;
+                            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                            overflow: visible;
+                            position: relative;
+                        ">
+                            <!-- Document wrapper with relative positioning -->
+                            <div id="documentWrapper" style="
+                                position: relative;
+                                width: 100%;
+                                height: 100%;
+                            ">
+                                <div id="previewContent" class="text-center text-muted p-4" style="position: relative; z-index: 1;">
+                                    <i class="bi bi-file-earmark" style="font-size: 4rem; color: var(--color-border);"></i>
+                                    <p class="mt-3 mb-0">Aucun document sélectionné</p>
+                                </div>
+                            </div>
+                            <!-- Zones overlay layer - positioned after document content so it sits on top -->
+                            <div id="zonesOverlay" style="
+                                position: absolute;
+                                top: 0;
+                                left: 0;
+                                width: 100%;
+                                height: 100%;
+                                z-index: 50;
+                                pointer-events: none;
+                                overflow: visible;
+                            "></div>
+                        </div>
+                    </div>
+
+                    <!-- Signature Zones Section -->
+                    <div id="signatureZonesSection" class="mb-4" style="display: none;">
+                        <h5 class="mb-3" style="color: var(--color-text); font-weight: 600;">
+                            <i class="bi bi-grid me-2 text-gold"></i>
+                            Zones de signature générées
+                        </h5>
+                        <div id="signatureZonesContainer" class="signature-zones-container" style="
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 12px;
+                            padding: 16px;
+                            background: #f8f9fa;
+                            border-radius: 8px;
+                            min-height: 80px;
+                        ">
+                            <div class="text-center text-muted w-100" id="zonesPlaceholder">
+                                <i class="bi bi-arrow-repeat spin"></i>
+                                <p class="mb-0">Chargement des zones...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Title -->
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Nom du document</label>
+                        <input type="text" name="title" id="title" class="form-control" placeholder="Entrez le nom du document" />
+                        <div class="form-text">Laissez vide pour utiliser le nom du fichier</div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description (Optionnel)</label>
+                        <textarea name="description" id="description" class="form-control" rows="3" placeholder="Ajoutez une description..."></textarea>
+                    </div>
+
+                    <!-- Workflow Selection -->
+                    <div class="mb-3">
+                        <label for="workflowId" class="form-label">Flux de travail <span class="text-danger">*</span></label>
+                        <select name="workflowId" id="workflowId" class="form-select" required onchange="onWorkflowChanged()">
+                            <option value="">Sélectionnez un flux de travail</option>
+                            @if (workflows != null)
+                            {
+                                @foreach (var workflow in workflows)
+                                {
+                                    <option value="@workflow.Id" data-required-signatures="@workflow.TotalRequiredSignatures">@workflow.Name</option>
+                                }
+                            }
+                        </select>
+                        <div class="form-text">Sélectionnez un flux de travail pour générer les zones de signature</div>
+                    </div>
+
+                    <input type="hidden" id="requiredSignaturesCount" value="0" />
+                    @Html.AntiForgeryToken()
+
+                    <!-- Workflow Steps Customization (hidden by default) -->
+                    <div id="workflowStepsSection" class="mb-4" style="display: none;">
+                        <div class="card" style="background: var(--color-gray-light);">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-diagram-3 me-2"></i>
+                                    Personnaliser les étapes du workflow
+                                </h5>
+                                <small class="text-muted">Modifiez les affectations pour ce document uniquement</small>
+                            </div>
+                            <div class="card-body" id="workflowStepsList">
+                                <div class="text-center text-muted">
+                                    <i class="bi bi-arrow-repeat spin"></i>
+                                    <p>Chargement des étapes...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expiration Date -->
+                    <div class="mb-4">
+                        <label for="expiresAt" class="form-label">Date d'expiration (Optionnel)</label>
+                        <input type="date" name="expiresAt" id="expiresAt" class="form-control" />
+                        <div class="form-text">Le document expirera après cette date</div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-secondary">Annuler</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload me-2"></i>Téléverser le document
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .drop-zone {
+        transition: all 0.3s ease;
+    }
+    .drop-zone:hover {
+        border-color: var(--color-gold) !important;
+        background: var(--color-gold-subtle) !important;
+    }
+    
+    /* Signature Zone Styles */
+    .signature-zone {
+        background: #FFFFFF;
+        border: 2px solid #C6A75E;
+        border-radius: 8px;
+        padding: 12px 16px;
+        display: inline-block;
+        min-width: 180px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Draggable signature zone for placement */
+    .draggable-zone {
+        width: 200px;
+        height: 80px;
+        background: rgba(198, 167, 94, 0.15);
+        border: 2px dashed #C6A75E;
+        border-radius: 8px;
+        cursor: move;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1C1C1C;
+        font-weight: 600;
+        font-size: 0.9rem;
+        user-select: none;
+        transition: box-shadow 0.2s ease;
+        position: relative;
+    }
+    
+    .draggable-zone:hover {
+        box-shadow: 0 4px 12px rgba(198, 167, 94, 0.3);
+    }
+    
+    .draggable-zone.placed {
+        position: absolute;
+        z-index: 1000;
+        pointer-events: auto;
+    }
+    
+    .draggable-zone.dragging {
+        opacity: 0.7;
+        cursor: grabbing;
+    }
+    
+    .signature-zone-number {
+        font-weight: 600;
+        color: var(--color-gold);
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+    }
+    
+    .signature-zone-step {
+        color: var(--color-text);
+        font-size: 0.85rem;
+    }
+    
+    .signature-zone-step-label {
+        color: var(--color-text-secondary);
+        font-size: 0.8rem;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const titleInput = document.getElementById('title');
+        const workflowSelect = document.getElementById('workflowId');
+        const workflowStepsSection = document.getElementById('workflowStepsSection');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewContent = document.getElementById('previewContent');
+        const documentWrapper = document.getElementById('documentWrapper');
+        const zonesOverlay = document.getElementById('zonesOverlay');
+        let currentObjectUrl = null;
+        
+        // Store zone positions: { zoneId: { x, y } }
+        let zonePositions = {};
+        
+        // Drag state
+        let draggedZone = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                // Update file info display
+                fileName.textContent = `${file.name} (${formatFileSize(file.size)})`;
+                fileInfo.style.display = 'block';
+                
+                // Auto-fill title if empty
+                if (!titleInput.value) {
+                    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+                    titleInput.value = nameWithoutExt;
+                }
+
+                // Handle document preview
+                showPreview(file);
+            }
+        }
+
+        function showPreview(file) {
+            // Clean up previous object URL if exists
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+            }
+
+            const fileType = file.type.toLowerCase();
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+
+            // Check if it's a PDF
+            if (fileType === 'application/pdf' || fileExtension === 'pdf') {
+                // Create object URL for PDF preview with zoom parameter for better readability
+                const fileURL = URL.createObjectURL(file) + "#zoom=page-width";
+                currentObjectUrl = fileURL;
+                previewContent.innerHTML = `
+                    <iframe src="${fileURL}" 
+                            style="width: 100%; height: 700px; border: none; display: block; pointer-events: none;"
+                            title="Document Preview"
+                            scrolling="yes">
+                    </iframe>
+                `;
+            }
+            // Check if it's a Word document
+            else if (
+                fileType === 'application/msword' || 
+                fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                fileExtension === 'doc' || 
+                fileExtension === 'docx'
+            ) {
+                // Show placeholder for Word documents
+                previewContent.innerHTML = `
+                    <div class="text-center p-4">
+                        <i class="bi bi-file-earmark-word" style="font-size: 4rem; color: #2B579A;"></i>
+                        <p class="mt-3 mb-0" style="color: var(--color-text-secondary);">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Aperçu disponible après conversion PDF
+                        </p>
+                        <p class="text-muted small mt-2">
+                            Le document sera converti en PDF lors du téléversement
+                        </p>
+                    </div>
+                `;
+            }
+            // For other file types
+            else {
+                previewContent.innerHTML = `
+                    <div class="text-center p-4">
+                        <i class="bi bi-file-earmark" style="font-size: 4rem; color: var(--color-border);"></i>
+                        <p class="mt-3 mb-0" style="color: var(--color-text-secondary);">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Aperçu non disponible pour ce type de fichier
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        function clearFile() {
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            
+            // Clean up object URL
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+            }
+            
+            // Reset preview
+            previewContent.innerHTML = `
+                <div class="text-center text-muted p-4">
+                    <i class="bi bi-file-earmark" style="font-size: 4rem; color: var(--color-border);"></i>
+                    <p class="mt-3 mb-0">Aucun document sélectionné</p>
+                </div>
+            `;
+        }
+
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const file = this.files[0];
+                fileName.textContent = `${file.name} (${formatFileSize(file.size)})`;
+                fileInfo.style.display = 'block';
+                
+                // Auto-fill title if empty
+                if (!titleInput.value) {
+                    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+                    titleInput.value = nameWithoutExt;
+                }
+            }
+        });
+
+        function onWorkflowChanged() {
+            const workflowId = workflowSelect.value;
+            const requiredSignaturesInput = document.getElementById('requiredSignaturesCount');
+            
+            if (workflowId) {
+                // Get required signatures from the selected option
+                const selectedOption = workflowSelect.options[workflowSelect.selectedIndex];
+                const requiredSignatures = parseInt(selectedOption.dataset.requiredSignatures || '0');
+                requiredSignaturesInput.value = requiredSignatures;
+                console.log('Workflow selected, required signatures:', requiredSignatures);
+                
+                // Show message about customizing workflow later
+                workflowStepsSection.style.display = 'block';
+                document.getElementById('workflowStepsList').innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Vous pourrez personnaliser les étapes du workflow après le téléchargement du document, 
+                        depuis la page de détails du document.
+                    </div>
+                `;
+                
+                // Load signature zones
+                loadSignatureZones(workflowId);
+            } else {
+                requiredSignaturesInput.value = '0';
+                workflowStepsSection.style.display = 'none';
+                // Hide signature zones section when no workflow selected
+                document.getElementById('signatureZonesSection').style.display = 'none';
+            }
+        }
+        
+        async function loadSignatureZones(workflowId) {
+            const zonesSection = document.getElementById('signatureZonesSection');
+            const zonesContainer = document.getElementById('signatureZonesContainer');
+            
+            // Show the section
+            zonesSection.style.display = 'block';
+            
+            // Show loading placeholder
+            zonesContainer.innerHTML = `
+                <div class="text-center text-muted w-100">
+                    <i class="bi bi-arrow-repeat spin"></i>
+                    <p class="mb-0">Chargement des zones...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch(`/Document/generate-zones?workflowId=${workflowId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Erreur lors du chargement des zones');
+                }
+                
+                const zones = await response.json();
+                
+                // Clear existing zones
+                zonesContainer.innerHTML = '';
+                
+                if (!zones || zones.length === 0) {
+                    zonesContainer.innerHTML = `
+                        <div class="text-center text-muted w-100">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <p class="mb-0">Aucune zone de signature trouvée pour ce workflow</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Create draggable zone elements
+                zones.forEach((zone, index) => {
+                    const zoneElement = document.createElement('div');
+                    zoneElement.className = 'draggable-zone';
+                    zoneElement.id = 'zone-' + index;
+                    zoneElement.dataset.zoneId = zone.zoneId;
+                    zoneElement.dataset.stepId = zone.stepId;
+                    zoneElement.dataset.signerRole = zone.signerRole || 'Signature';
+                    zoneElement.dataset.zoneWidth = zone.zoneWidth || 200;
+                    zoneElement.dataset.zoneHeight = zone.zoneHeight || 80;
+                    zoneElement.dataset.index = index;
+                    zoneElement.innerHTML = zone.signerRole && zone.signerRole.toLowerCase().includes('paraph') ? 'Zone de paraphe' : 'Zone de signature';
+                    
+                    // Make draggable
+                    zoneElement.draggable = true;
+                    
+                    // Drag start event
+                    zoneElement.addEventListener('dragstart', handleDragStart);
+                    
+                    // Mouse drag events for desktop
+                    zoneElement.addEventListener('mousedown', handleMouseDown);
+                    
+                    zonesContainer.appendChild(zoneElement);
+                });
+                
+                // Setup drop zone on preview container
+                setupDropZone();
+                
+            } catch (error) {
+                console.error('Error loading signature zones:', error);
+                zonesContainer.innerHTML = `
+                    <div class="alert alert-warning mb-0 w-100">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Erreur lors du chargement des zones de signature
+                    </div>
+                `;
+            }
+        }
+
+        // Drag and Drop Functions
+        function handleDragStart(e) {
+            draggedZone = e.target;
+            e.dataTransfer.setData('text/plain', e.target.id);
+            e.dataTransfer.effectAllowed = 'move';
+            e.target.classList.add('dragging');
+        }
+        
+        function handleMouseDown(e) {
+            const zone = e.target.closest('.draggable-zone');
+            if (!zone) return;
+            
+            // If zone is already placed, enable repositioning
+            if (zone.classList.contains('placed')) {
+                e.preventDefault();
+                const rect = zone.getBoundingClientRect();
+                const containerRect = previewContainer.getBoundingClientRect();
+                
+                dragOffsetX = e.clientX - rect.left;
+                dragOffsetY = e.clientY - rect.top;
+                draggedZone = zone;
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+                
+                zone.classList.add('dragging');
+            }
+        }
+        
+        function handleMouseMove(e) {
+            if (!draggedZone || !draggedZone.classList.contains('placed')) return;
+            
+            const containerRect = previewContainer.getBoundingClientRect();
+            let newX = e.clientX - containerRect.left - dragOffsetX;
+            let newY = e.clientY - containerRect.top - dragOffsetY;
+            
+            // Constrain to container bounds
+            newX = Math.max(0, Math.min(newX, containerRect.width - draggedZone.offsetWidth));
+            newY = Math.max(0, Math.min(newY, containerRect.height - draggedZone.offsetHeight));
+            
+            draggedZone.style.left = newX + 'px';
+            draggedZone.style.top = newY + 'px';
+            
+            // Update position in storage with full metadata
+            const index = draggedZone.dataset.index;
+            const zoneWidth = draggedZone.dataset.zoneWidth || 200;
+            const zoneHeight = draggedZone.dataset.zoneHeight || 80;
+            zonePositions[index] = {
+                zoneId: draggedZone.dataset.zoneId,
+                stepId: draggedZone.dataset.stepId,
+                signerRole: draggedZone.dataset.signerRole || 'Signature',
+                x: newX,
+                y: newY,
+                width: parseInt(zoneWidth),
+                height: parseInt(zoneHeight)
+            };
+            console.log('Zone position updated:', zonePositions[index]);
+        }
+        
+        function handleMouseUp(e) {
+            if (draggedZone && draggedZone.classList.contains('dragging')) {
+                draggedZone.classList.remove('dragging');
+            }
+            draggedZone = null;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        }
+        
+        function setupDropZone() {
+            // Drag over event
+            previewContainer.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+            
+            // Drop event
+            previewContainer.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation(); // Prevent any default browser behavior
+                
+                const zoneId = e.dataTransfer.getData('text/plain');
+                const zone = document.getElementById(zoneId);
+                
+                console.log('=== DROP EVENT DEBUG ===');
+                console.log('Drop event - zone:', zoneId);
+                console.log('Drop coordinates:', e.clientX, e.clientY);
+                console.log('zonePositions before:', JSON.stringify(zonePositions));
+                
+                if (zone) {
+                    zone.classList.remove('dragging');
+                    
+                    // Calculate drop position relative to preview container
+                    const containerRect = previewContainer.getBoundingClientRect();
+                    let dropX = e.clientX - containerRect.left - (zone.offsetWidth / 2);
+                    let dropY = e.clientY - containerRect.top - (zone.offsetHeight / 2);
+                    
+                    console.log('Container rect:', containerRect);
+                    console.log('Calculated drop position:', dropX, dropY);
+                    
+                    // Constrain to container bounds
+                    dropX = Math.max(0, Math.min(dropX, containerRect.width - zone.offsetWidth));
+                    dropY = Math.max(0, Math.min(dropY, containerRect.height - zone.offsetHeight));
+                    
+                    // Move zone to zones overlay
+                    zonesOverlay.appendChild(zone);
+                    zone.classList.add('placed');
+                    zone.style.position = 'absolute';
+                    zone.style.left = dropX + 'px';
+                    zone.style.top = dropY + 'px';
+                    
+                    console.log('Zone placed at:', dropX + 'px', dropY + 'px');
+                    console.log('Zone parent:', zone.parentElement);
+                    console.log('Zone style:', zone.style.cssText);
+                    
+                    // Store position with full metadata
+                    const index = zone.dataset.index;
+                    const zoneWidth = zone.dataset.zoneWidth || 200;
+                    const zoneHeight = zone.dataset.zoneHeight || 80;
+                    zonePositions[index] = {
+                        zoneId: zone.dataset.zoneId,
+                        stepId: zone.dataset.stepId,
+                        signerRole: zone.dataset.signerRole || 'Signature',
+                        x: dropX,
+                        y: dropY,
+                        width: parseInt(zoneWidth),
+                        height: parseInt(zoneHeight)
+                    };
+                    
+                    console.log('zonePositions after:', JSON.stringify(zonePositions));
+                    console.log('=== END DROP EVENT DEBUG ===');
+                }
+            });
+        }
+
+        function formatFileSize(bytes) {
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            let order = 0;
+            while (bytes >= 1024 && order < sizes.length - 1) {
+                order++;
+                bytes /= 1024;
+            }
+            return `${bytes.toFixed(2)} ${sizes[order]}`;
+        }
+
+        // Set minimum date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('expiresAt').setAttribute('min', today);
+        
+        // Handle form submission - intercept with fetch() to ensure signature zones are always sent
+        const form = document.getElementById("uploadForm");
+        
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault(); // stop normal form submission
+
+            const formData = new FormData(form);
+
+            // Convert zonePositions to array
+            const zonesArray = Object.values(zonePositions || {});
+
+            // Serialize to JSON
+            const zonesJson = JSON.stringify(zonesArray);
+
+            // Append to form data
+            formData.append("signatureZones", zonesJson);
+
+            console.log("Sending zones:", zonesJson);
+
+            try {
+                const response = await fetch(form.action, {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    const text = await response.text();
+                    document.body.innerHTML = text;
+                }
+            } catch (error) {
+                console.error("Upload failed:", error);
+            }
+        });
+    </script>
+}

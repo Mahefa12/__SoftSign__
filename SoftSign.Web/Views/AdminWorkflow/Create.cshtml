@@ -1,0 +1,317 @@
+@model SoftSign.Application.DTOs.CreateWorkflowDto
+@using SoftSign.Domain.Enums
+
+@{
+    ViewData["Title"] = "Créer un flux de travail";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-plus-circle"></i>
+        Créer un flux de travail
+    </h2>
+</div>
+
+@* Error Messages *@
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@* ModelState Validation Errors *@
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        <strong>Erreurs de validation:</strong>
+        <ul class="mb-0 mt-2">
+            @foreach (var modelError in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <li>@modelError.ErrorMessage</li>
+            }
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card card-luxury">
+    <div class="card-body">
+        <form asp-action="Create" method="post" id="workflowForm">
+            @Html.AntiForgeryToken()
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label form-label-luxury">
+                            Nom du flux de travail <span class="text-danger">*</span>
+                        </label>
+                        <input asp-for="Name" class="form-control form-control-luxury" 
+                               placeholder="Entrez le nom du workflow" required />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label form-label-luxury">
+                            Description
+                        </label>
+                        <textarea asp-for="Description" class="form-control form-control-luxury" 
+                                  rows="1" placeholder="Description optionnelle"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="form-check form-check-luxury">
+                            <input asp-for="IsDefault" class="form-check-input" type="checkbox" id="isDefault" />
+                            <label asp-for="IsDefault" class="form-check-label" for="isDefault">
+                                Définir comme workflow par défaut
+                            </label>
+                        </div>
+                        <small class="text-muted">Le workflow par défaut sera automatiquement sélectionné pour les nouveaux documents.</small>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4" />
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ol me-2"></i>Étapes du flux de travail
+                </h5>
+                <button type="button" class="btn btn-luxury-outline btn-sm" id="addStep">
+                    <i class="bi bi-plus me-1"></i>Ajouter une étape
+                </button>
+            </div>
+
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle me-1"></i>Faites glisser les étapes pour modifier leur ordre.
+            </p>
+
+            <div id="stepsContainer" class="step-list">
+                @for (int i = 0; i < Model.Steps.Count; i++)
+                {
+                    <div class="card mb-3 step-card" data-index="@i">
+                        <div class="card-body">
+                            <div class="step-drag-handle">
+                                <i class="bi bi-grip-vertical"></i>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-2">
+                                        <label class="form-label form-label-luxury">Nom de l'étape</label>
+                                        <input asp-for="Steps[i].Name" class="form-control form-control-luxury" 
+                                               placeholder="Nom de l'étape" required />
+                                        <span asp-validation-for="Steps[i].Name" class="text-danger small"></span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-2">
+                                        <label class="form-label form-label-luxury">Type d'étape</label>
+                                        <select asp-for="Steps[i].StepType" asp-items="Html.GetEnumSelectList<StepType>()" 
+                                                class="form-select form-select-luxury step-type-select">
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-2">
+                                        <label class="form-label form-label-luxury">Nombre de signatures</label>
+                                        <input asp-for="Steps[i].RequiredSignatureCount" type="number" min="1" max="10" 
+                                               class="form-control form-control-luxury" value="1" />
+                                    </div>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="button" class="btn btn-luxury-outline-danger remove-step" title="Supprimer">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="mb-2">
+                                        <label class="form-label form-label-luxury">Instructions</label>
+                                        <textarea asp-for="Steps[i].Instructions" class="form-control form-control-luxury" 
+                                                  rows="2" placeholder="Instructions optionnelles pour cette étape"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" asp-for="Steps[i].StepOrder" class="step-order-input" value="@(i + 1)" />
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (!Model.Steps.Any())
+            {
+                <div id="noStepsMessage" class="text-center py-4 text-muted empty-steps">
+                    <i class="bi bi-list-ol d-block mb-2" style="font-size: 2rem;"></i>
+                    <p>Aucune étape ajoutée. Cliquez sur "Ajouter une étape" pour commencer.</p>
+                </div>
+            }
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <a asp-action="Index" class="btn btn-secondary btn-luxury">
+                    <i class="bi bi-x-circle me-1"></i>Annuler
+                </a>
+                <button type="submit" class="btn btn-primary btn-gold">
+                    <i class="bi bi-check-circle me-1"></i>Créer le workflow
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        let stepIndex = @Model.Steps.Count;
+
+        // Initialize Sortable
+        const stepsContainer = document.getElementById('stepsContainer');
+        
+        if (stepsContainer) {
+            new Sortable(stepsContainer, {
+                animation: 150,
+                handle: '.step-drag-handle',
+                ghostClass: 'step-ghost',
+                chosenClass: 'step-chosen',
+                dragClass: 'step-drag',
+                onEnd: function(evt) {
+                    updateStepOrders();
+                }
+            });
+        }
+
+        function updateStepOrders() {
+            const cards = document.querySelectorAll('.step-card');
+            cards.forEach((card, index) => {
+                const orderInput = card.querySelector('.step-order-input');
+                if (orderInput) {
+                    orderInput.value = index + 1;
+                }
+                card.setAttribute('data-index', index);
+                
+                // Update input names
+                const inputs = card.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    const name = input.getAttribute('name');
+                    if (name) {
+                        const newName = name.replace(/Steps\[\d+\]/, `Steps[${index}]`);
+                        input.setAttribute('name', newName);
+                    }
+                });
+            });
+        }
+
+        document.getElementById('addStep').addEventListener('click', function() {
+            const container = document.getElementById('stepsContainer');
+            const noStepsMessage = document.getElementById('noStepsMessage');
+            
+            if (noStepsMessage) {
+                noStepsMessage.style.display = 'none';
+            }
+
+            const currentIndex = stepIndex;
+
+            const stepHtml = `
+                <div class="card mb-3 step-card" data-index="${currentIndex}">
+                    <div class="card-body">
+                        <div class="step-drag-handle">
+                            <i class="bi bi-grip-vertical"></i>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-2">
+                                    <label class="form-label form-label-luxury">Nom de l'étape</label>
+                                    <input name="Steps[${currentIndex}].Name" class="form-control form-control-luxury" 
+                                           placeholder="Nom de l'étape" required />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-2">
+                                    <label class="form-label form-label-luxury">Type d'étape</label>
+                                    <select name="Steps[${currentIndex}].StepType" class="form-select form-select-luxury step-type-select">
+                                        <option value="0">Signature</option>
+                                        <option value="1">Validation</option>
+                                        <option value="2">Paraphe</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-2">
+                                    <label class="form-label form-label-luxury">Nombre de signatures</label>
+                                    <input name="Steps[${currentIndex}].RequiredSignatureCount" type="number" min="1" max="10" 
+                                           class="form-control form-control-luxury" value="1" />
+                                </div>
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button type="button" class="btn btn-luxury-outline-danger remove-step" title="Supprimer">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-2">
+                                    <label class="form-label form-label-luxury">Instructions</label>
+                                    <textarea name="Steps[${currentIndex}].Instructions" class="form-control form-control-luxury" 
+                                              rows="2" placeholder="Instructions optionnelles pour cette étape"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="Steps[${currentIndex}].StepOrder" class="step-order-input" value="${currentIndex + 1}" />
+                    </div>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', stepHtml);
+            stepIndex++;
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-step')) {
+                const card = e.target.closest('.step-card');
+                card.remove();
+                
+                updateStepOrders();
+                
+                const stepsContainer = document.getElementById('stepsContainer');
+                if (stepsContainer.children.length === 0) {
+                    const noStepsMessage = document.getElementById('noStepsMessage');
+                    if (noStepsMessage) {
+                        noStepsMessage.style.display = 'block';
+                    }
+                }
+            }
+        });
+
+        // Client-side validation
+        document.getElementById('workflowForm').addEventListener('submit', function(e) {
+            const steps = document.querySelectorAll('.step-card');
+            if (steps.length === 0) {
+                e.preventDefault();
+                alert('Veuillez ajouter au moins une étape au workflow.');
+                return;
+            }
+            
+            let hasError = false;
+            steps.forEach(step => {
+                const nameInput = step.querySelector('input[name*="Name"]');
+                if (nameInput && !nameInput.value.trim()) {
+                    nameInput.classList.add('is-invalid');
+                    hasError = true;
+                }
+            });
+            
+            if (hasError) {
+                e.preventDefault();
+                alert('Veuillez remplir tous les noms des étapes.');
+            }
+        });
+    </script>
+}

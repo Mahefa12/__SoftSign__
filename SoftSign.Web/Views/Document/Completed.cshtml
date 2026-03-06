@@ -1,0 +1,94 @@
+@model IEnumerable<SoftSign.Application.DTOs.DocumentDto>
+
+@{
+    ViewData["Title"] = "Documents Terminés";
+    Layout = "_Layout";
+}
+
+<div class="content-wrapper">
+    <div class="page-header">
+        <h2 class="page-title">Documents Terminés</h2>
+    </div>
+
+    <div class="content-card">
+        <div class="card-header">
+            <form method="get" class="search-form">
+                <input type="text" name="search" value="@ViewBag.Search" placeholder="Rechercher..." class="search-input" />
+                <button type="submit" class="btn-search">
+                    <i class="bi bi-search"></i>
+                </button>
+            </form>
+        </div>
+
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Titre</th>
+                            <th>Type</th>
+                            <th>Statut</th>
+                            <th>Créé le</th>
+                            <th>Modifié le</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-action="Details" asp-route-id="@doc.Id" class="doc-title">@doc.Title</a>
+                                </td>
+                                <td>@doc.OriginalFileName</td>
+                                <td>
+                                    <span class="status-badge status-completed">Terminé</span>
+                                </td>
+                                <td>@doc.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                <td>@(doc.UpdatedAt?.ToString("dd/MM/yyyy") ?? "-")</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a asp-action="Details" asp-route-id="@doc.Id" class="btn-action btn-view">
+                                            <i class="bi bi-eye"></i> Voir
+                                        </a>
+                                        <a asp-action="Download" asp-route-id="@doc.Id" class="btn-action btn-download">
+                                            <i class="bi bi-download"></i> Télécharger
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (ViewBag.TotalPages > 1)
+            {
+                <div class="pagination">
+                    @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                    {
+                        <a href="@Url.Action("Completed", new { page = i, search = ViewBag.Search })" 
+                           class="page-link @(i == ViewBag.CurrentPage ? "active" : "")">
+                            @i
+                        </a>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-check-circle empty-icon"></i>
+                <p>Aucun document terminé pour le moment.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .status-completed {
+        background-color: #1d4d2c;
+        color: #fff;
+    }
+</style>

@@ -1,0 +1,275 @@
+﻿@using Microsoft.AspNetCore.Identity
+@inject UserManager<SoftSign.Domain.Entities.User> UserManager
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - SoftSign</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <!-- Sidebar Layout -->
+        <div class="app-container">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <a asp-controller="Home" asp-action="Index" class="sidebar-brand">
+                        <div class="sidebar-brand-icon">
+                            <i class="bi bi-file-earmark-check-fill"></i>
+                        </div>
+                        <span>SoftSign</span>
+                    </a>
+                </div>
+                
+                <nav class="sidebar-nav">
+                    <div class="sidebar-section-title">Principal</div>
+                    
+                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")" 
+                       asp-controller="Home" asp-action="Index">
+                        <i class="bi bi-grid-1x2"></i>
+                        <span>Tableau de bord</span>
+                    </a>
+                    
+                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Document" ? "active" : "")" 
+                       asp-controller="Document" asp-action="Index">
+                        <i class="bi bi-folder2-open"></i>
+                        <span>Mes Documents</span>
+                    </a>
+                    
+                    <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Workflow" ? "active" : "")" 
+                       asp-controller="Workflow" asp-action="Index">
+                        <i class="bi bi-list-check"></i>
+                        <span>Actions en attente</span>
+                    </a>
+                    
+                    <a class="sidebar-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Completed" ? "active" : "")" 
+                       asp-controller="Document" asp-action="Completed">
+                        <i class="bi bi-check-circle"></i>
+                        <span>Documents terminés</span>
+                    </a>
+                    
+                    @if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+                    {
+                        <div class="sidebar-section-title">Administration</div>
+                        
+                        <a class="sidebar-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Admin" ? "active" : "")" 
+                           asp-controller="Admin" asp-action="Dashboard">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Administration</span>
+                        </a>
+                    }
+                </nav>
+                
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <div class="user-name">@User.Identity.Name</div>
+                        @{
+                            var userName = User.Identity?.Name;
+                            var user = !string.IsNullOrEmpty(userName) ? await UserManager.FindByNameAsync(userName) : null;
+                            var roles = user != null ? await UserManager.GetRolesAsync(user) : new List<string>();
+                        }
+                        <div class="user-role">@(roles.FirstOrDefault() ?? "Utilisateur")</div>
+                    </div>
+                </div>
+            </aside>
+            
+            <!-- Main Content -->
+            <div class="main-wrapper">
+                <!-- Top Bar -->
+                <header class="topbar">
+                    <div class="topbar-left">
+                        <h1 class="topbar-title">@ViewData["Title"]</h1>
+                    </div>
+                    
+                    <div class="topbar-right">
+                        <!-- Notifications -->
+                        <div class="dropdown">
+                            <button class="notification-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-bell"></i>
+                                <span class="notification-badge" id="unreadCount" style="display: none;">0</span>
+                            </button>
+                            <div class="dropdown-menu notification-dropdown">
+                                <div class="notification-dropdown-header">
+                                    <h6 class="notification-dropdown-title">Notifications</h6>
+                                    <button class="btn btn-sm btn-link text-decoration-none" onclick="markAllNotificationsRead()">Tout marquer comme lu</button>
+                                </div>
+                                <div id="notificationList">
+                                    <div class="text-center p-4 text-muted">
+                                        <i class="bi bi-bell-slash fs-4 d-block mb-2"></i>
+                                        <small>Aucune notification</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- User Menu -->
+                        <div class="dropdown">
+                            <button class="user-menu" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="user-avatar">@GetUserInitials()</div>
+                                <div class="user-info d-none d-md-block">
+                                    <div class="user-name">@User.Identity.Name</div>
+                                </div>
+                                <i class="bi bi-chevron-down ms-2" style="font-size: 12px;"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                <a class="dropdown-item" asp-controller="Account" asp-action="Profile">
+                                    <i class="bi bi-person"></i> Profil
+                                </a>
+                                <a class="dropdown-item" asp-controller="Account" asp-action="Settings">
+                                    <i class="bi bi-gear"></i> Paramètres
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <form asp-controller="Account" asp-action="Logout" method="post">
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="bi bi-box-arrow-right"></i> Déconnexion
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+                
+                <!-- Main Content Area -->
+                <main class="main-content">
+                    @RenderBody()
+                </main>
+                
+                <!-- Footer -->
+                <footer class="app-footer">
+                    <span class="footer-text">&copy; 2026 SoftSign. Tous droits réservés.</span>
+                    <div class="footer-links">
+                        <a class="footer-link" asp-controller="Home" asp-action="Privacy">Confidentialité</a>
+                        <a class="footer-link" asp-controller="Home" asp-action="Terms">Conditions</a>
+                    </div>
+                </footer>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Full Width Layout for Unauthenticated Users -->
+        @RenderBody()
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script>
+            $(document).ready(function() {
+                loadNotifications();
+                setInterval(loadNotifications, 30000);
+            });
+
+            function loadNotifications() {
+                $.get('/Notification/GetUnreadCount', function(data) {
+                    const badge = $('#unreadCount');
+                    if (data.count > 0) {
+                        badge.text(data.count).show();
+                    } else {
+                        badge.hide();
+                    }
+                });
+
+                $.get('/Notification/GetRecent', function(data) {
+                    const list = $('#notificationList');
+                    if (data.length > 0) {
+                        list.empty();
+                        data.forEach(function(notification) {
+                            const iconClass = getNotificationIconClass(notification.type);
+                            const item = `
+                                <a href="${notification.link || '#'}" class="notification-item ${notification.isRead ? '' : 'unread'}" onclick="markNotificationRead('${notification.id}')">
+                                    <div class="notification-icon-wrapper ${iconClass.class}">
+                                        <i class="bi ${iconClass.icon}"></i>
+                                    </div>
+                                    <div class="notification-content">
+                                        <div class="notification-title">${notification.title}</div>
+                                        <div class="notification-message">${notification.message}</div>
+                                        <div class="notification-time">${formatDate(notification.createdAt)}</div>
+                                    </div>
+                                </a>
+                            `;
+                            list.append(item);
+                        });
+                    }
+                }).fail(function() {
+                    $('#notificationList').html(`
+                        <div class="text-center p-4 text-muted">
+                            <i class="bi bi-bell-slash fs-4 d-block mb-2"></i>
+                            <small>Aucune notification</small>
+                        </div>
+                    `);
+                });
+            }
+
+            function getNotificationIconClass(type) {
+                const icons = {
+                    'Document': { icon: 'bi-file-earmark-text', class: 'document' },
+                    'Signature': { icon: 'bi-pen', class: 'signature' },
+                    'Workflow': { icon: 'bi-arrow-right-circle', class: 'workflow' },
+                    'Approval': { icon: 'bi-check-circle', class: 'signature' },
+                    'Rejection': { icon: 'bi-x-circle', class: 'workflow' },
+                    'Correction': { icon: 'bi-arrow-counterclockwise', class: 'workflow' }
+                };
+                return icons[type] || { icon: 'bi-bell', class: 'document' };
+            }
+
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diff = now - date;
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                const days = Math.floor(diff / 86400000);
+
+                if (minutes < 1) return 'À l\'instant';
+                if (minutes < 60) return `${minutes}min`;
+                if (hours < 24) return `${hours}h`;
+                if (days < 7) return `${days}j`;
+                return date.toLocaleDateString();
+            }
+
+            function markNotificationRead(id) {
+                $.post('/Notification/MarkAsRead', { id: id }, function() {
+                    loadNotifications();
+                });
+            }
+
+            function markAllNotificationsRead() {
+                $.post('/Notification/MarkAllAsRead', function() {
+                    loadNotifications();
+                });
+            }
+        </script>
+    }
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
+
+@functions {
+    string GetUserInitials()
+    {
+        if (User.Identity?.Name == null) return "?";
+        var name = User.Identity.Name;
+        if (name.Contains('@'))
+        {
+            name = name.Split('@')[0];
+        }
+        var parts = name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        }
+        return name.Length >= 2 ? name.Substring(0, 2).ToUpper() : name.ToUpper();
+    }
+}

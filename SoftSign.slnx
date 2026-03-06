@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SoftSign.Application/SoftSign.Application.csproj" />
+  <Project Path="SoftSign.Domain/SoftSign.Domain.csproj" />
+  <Project Path="SoftSign.Infrastructure/SoftSign.Infrastructure.csproj" />
+  <Project Path="SoftSign.Web/SoftSign.Web.csproj" />
+</Solution>

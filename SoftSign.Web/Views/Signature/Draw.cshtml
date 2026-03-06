@@ -1,0 +1,307 @@
+@{
+    ViewData["Title"] = "Signer le document";
+    var document = ViewBag.Document as SoftSign.Application.DTOs.DocumentDto;
+    var zones = ViewBag.Zones as List<SoftSign.Domain.Entities.SignatureZone>;
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-pen"></i>
+        Signer le document
+    </h2>
+    <a asp-controller="Document" asp-action="Details" asp-route-id="@document?.Id" class="btn btn-outline">
+        <i class="bi bi-arrow-left me-2"></i>Retour au document
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- LEFT: Document Preview -->
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    @document?.Title
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge badge-pending">Page 1 sur 1</span>
+                    <a href="@Url.Action("Download", "Document", new { id = document?.Id })" target="_blank" class="btn btn-sm btn-outline">
+                        <i class="bi bi-box-arrow-up-right"></i> Ouvrir en grand
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- Scrollable container - ONLY this scrolls -->
+                <div id="docViewer" style="overflow: auto; max-height: 80vh; background: #525659;">
+                    @{
+                        var pdfUrl = Url.Action("Download", "Document", new { id = document?.Id }, Context.Request.Scheme);
+                        var pageWidth = ViewBag.PageWidth ?? 595.28;
+                        var pageHeight = ViewBag.PageHeight ?? 841.89;
+                    }
+                    
+                    <!-- Dynamic-size PDF page wrapper based on actual PDF page size -->
+                    <div style="position: relative; width: @(pageWidth)px; height: @(pageHeight)px; margin: 20px auto; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                        
+                        <!-- PDF via embed (no internal scrolling) -->
+                        <embed src="@pdfUrl#page=1&view=FitV" 
+                               type="application/pdf"
+                               style="width: 100%; height: 100%;"
+                               id="pdfEmbed" />
+                        
+                        <!-- Zones Overlay - INSIDE the same container so they scroll together -->
+                        @if (zones != null && zones.Any())
+                        {
+                            <div id="zonesOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                                @foreach (var zone in zones)
+                                {
+                                    // PositionY is stored in top-left (canvas) coordinates
+                                    // Use directly for HTML display (top-left origin)
+                                    var htmlY = zone.PositionY;
+                                    <text>
+                                    <script>console.log('=== ZONE DISPLAY DEBUG ==='); console.log('Zone ID: @zone.Id'); console.log('PageHeight (ViewBag): @pageHeight'); console.log('PositionY (from DB): @zone.PositionY'); console.log('Calculated HTML top: @htmlY'); console.log('PositionX: @zone.PositionX'); console.log('Width: @zone.Width, Height: @zone.Height');</script>
+                                    </text>
+                                    <div class="signature-zone" 
+                                         style="position: absolute; left: @(zone.PositionX)px; top: @(htmlY)px; width: @(zone.Width)px; height: @(zone.Height)px; pointer-events: auto;">
+                                        <div class="signature-zone-label">@zone.Label (@zone.Level)</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Signature Pad -->
+    <div class="col-lg-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-pen"></i>
+                    Votre signature
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="signatureForm" asp-action="Submit" method="post">
+                    <input type="hidden" name="documentId" value="@document?.Id" />
+                    <input type="hidden" name="signatureData" id="signatureData" />
+                    
+                    <div class="signature-canvas-container mb-3">
+                        <canvas id="signatureCanvas" width="300" height="150" class="w-100"></canvas>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mb-3">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearSignature()">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Effacer
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="typeSignature()">
+                            <i class="bi bi-keyboard me-1"></i>Saisir
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="comments" class="form-label">Commentaires (Optionnel)</label>
+                        <textarea name="comments" id="comments" class="form-control" rows="2" placeholder="Ajouter des commentaires..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100" onclick="return saveSignature()">
+                        <i class="bi bi-check2-circle me-2"></i>Appliquer la signature
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Instructions
+                </h6>
+            </div>
+            <div class="card-body">
+                <ol class="small mb-0 ps-3" style="color: var(--color-text-secondary);">
+                    <li class="mb-2">Dessinez votre signature dans la case avec la souris ou le toucher</li>
+                    <li class="mb-2">Ou cliquez sur "Saisir" pour entrer une signature tapée</li>
+                    <li class="mb-2">Cliquez sur "Appliquer la signature" pour signer le document</li>
+                    <li>Votre signature sera appliquée à toutes les zones désignées</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Type Signature Modal -->
+<div class="modal fade" id="typeSignatureModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Saisir une signature</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="typedSignature" class="form-label">Entrez votre nom</label>
+                    <input type="text" id="typedSignature" class="form-control" placeholder="Entrez votre nom complet" />
+                </div>
+                <div class="text-center p-4 bg-light rounded">
+                    <p id="typedPreview" style="font-family: 'Brush Script MT', cursive; font-size: 2rem; color: #333; margin: 0;"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="applyTypedSignature()">Appliquer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const docViewer = document.getElementById('docViewer');
+            const pdfEmbed = document.getElementById('pdfEmbed');
+            
+            if (docViewer) {
+                // Log scroll events for debugging
+                docViewer.addEventListener('scroll', function() {
+                    // Zones should scroll naturally with parent since they're in the same container
+                });
+                
+                // Log zone positions
+                const zones = document.querySelectorAll('.signature-zone');
+                zones.forEach(function(zone, index) {
+                    console.log('Zone ' + index + ': left=' + zone.style.left + ', top=' + zone.style.top);
+                });
+                
+                console.log('Document viewer initialized, zones:', zones.length);
+            }
+        });
+        
+        const canvas = document.getElementById('signatureCanvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // Set canvas background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Drawing settings
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Mouse events
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        });
+
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
+
+        // Touch events
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            lastX = e.touches[0].clientX - rect.left;
+            lastY = e.touches[0].clientY - rect.top;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.touches[0].clientX - rect.left;
+            const y = e.touches[0].clientY - rect.top;
+            draw({ offsetX: x, offsetY: y });
+        });
+
+        canvas.addEventListener('touchend', () => isDrawing = false);
+
+        function draw(e) {
+            if (!isDrawing) return;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function clearSignature() {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('signatureData').value = '';
+        }
+
+        function saveSignature() {
+            const dataUrl = canvas.toDataURL('image/png');
+            document.getElementById('signatureData').value = dataUrl;
+            
+            if (!dataUrl || dataUrl === 'data:image/png;base64,') {
+                alert('Veuillez d\'abord dessiner ou saisir votre signature.');
+                return false;
+            }
+            return true;
+        }
+
+        function typeSignature() {
+            const modal = new bootstrap.Modal(document.getElementById('typeSignatureModal'));
+            modal.show();
+        }
+
+        document.getElementById('typedSignature').addEventListener('input', function(e) {
+            document.getElementById('typedPreview').textContent = e.target.value;
+        });
+
+        function applyTypedSignature() {
+            const typed = document.getElementById('typedSignature').value;
+            if (!typed) {
+                alert('Veuillez taper votre nom.');
+                return;
+            }
+            
+            // Create a canvas with the typed signature
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 300;
+            tempCanvas.height = 150;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            tempCtx.font = '48px "Brush Script MT", cursive';
+            tempCtx.fillStyle = '#000000';
+            tempCtx.textAlign = 'center';
+            tempCtx.textBaseline = 'middle';
+            tempCtx.fillText(typed, tempCanvas.width / 2, tempCanvas.height / 2);
+            
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            document.getElementById('signatureData').value = dataUrl;
+            
+            // Draw to main canvas
+            const img = new Image();
+            img.onload = function() {
+                clearSignature();
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = dataUrl;
+            
+            bootstrap.Modal.getInstance(document.getElementById('typeSignatureModal')).hide();
+        }
+
+        // Form validation
+        document.getElementById('signatureForm').addEventListener('submit', function(e) {
+            if (!saveSignature()) {
+                e.preventDefault();
+            }
+        });
+    </script>
+}

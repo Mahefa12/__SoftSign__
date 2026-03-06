@@ -1,0 +1,226 @@
+@model IEnumerable<SoftSign.Application.DTOs.DocumentDto>
+
+@{
+    ViewData["Title"] = "Documents";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-folder2-open"></i>
+        Mes Documents
+    </h2>
+    <a asp-action="Upload" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-2"></i>Télécharger un document
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <!-- Filters -->
+        <form asp-action="Index" method="get" class="filters-bar">
+            <div class="search-input">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="Rechercher des documents..." value="@ViewBag.Search" />
+                </div>
+            </div>
+            <select name="status" class="form-select">
+                <option value="">Tous les statuts</option>
+                <option value="0" selected="@(ViewBag.Status == SoftSign.Domain.Enums.DocumentStatus.Draft)">Brouillon</option>
+                <option value="1" selected="@(ViewBag.Status == SoftSign.Domain.Enums.DocumentStatus.Pending)">En attente</option>
+                <option value="2" selected="@(ViewBag.Status == SoftSign.Domain.Enums.DocumentStatus.InProgress)">En cours</option>
+                <option value="3" selected="@(ViewBag.Status == SoftSign.Domain.Enums.DocumentStatus.Completed)">Terminé</option>
+                <option value="4" selected="@(ViewBag.Status == SoftSign.Domain.Enums.DocumentStatus.Rejected)">Rejeté</option>
+                <option value="5" selected="@(ViewBag.Status == SoftSign.Domain.Enums.DocumentStatus.Expired)">Expiré</option>
+            </select>
+            <button type="submit" class="btn btn-outline">
+                <i class="bi bi-funnel me-1"></i>Filtrer
+            </button>
+            <span class="filters-results ms-auto">@ViewBag.TotalCount documents</span>
+        </form>
+
+        <!-- Documents Table -->
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Titre</th>
+                        <th>Nom du fichier</th>
+                        <th>Statut</th>
+                        <th>Signatures</th>
+                        <th>Créé le</th>
+                        <th>Expire</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">
+                                        <i class="bi bi-folder-x"></i>
+                                    </div>
+                                    <h4 class="empty-state-title">Aucun document trouvé</h4>
+                                    <p class="empty-state-description">Téléchargez votre premier document pour commencer</p>
+                                    <a asp-action="Upload" class="btn btn-primary">Télécharger un document</a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var doc in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-action="Details" asp-route-id="@doc.Id" class="text-decoration-none fw-semibold" style="color: var(--color-text);">
+                                        @doc.Title
+                                    </a>
+                                    @if (!string.IsNullOrEmpty(doc.Description))
+                                    {
+                                        <div class="text-muted" style="font-size: 0.75rem;">@doc.Description</div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                        <div>
+                                            <div>@doc.OriginalFileName</div>
+                                            <div class="text-muted" style="font-size: 0.75rem;">@FormatFileSize(doc.FileSize)</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-@GetStatusBadgeClass(doc.Status)">
+                                        @doc.StatusDisplay
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-pen" style="color: var(--color-gold);"></i>
+                                        <span>@doc.CompletedSignatureCount / @doc.SignatureCount</span>
+                                    </div>
+                                </td>
+                                <td>@doc.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    @if (doc.ExpiresAt.HasValue)
+                                    {
+                                        <span class="@(doc.ExpiresAt < DateTime.UtcNow ? "text-danger" : "text-muted")">
+                                            @doc.ExpiresAt.Value.ToString("MMM dd, yyyy")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="action-buttons justify-content-end">
+                                        <a asp-action="Details" asp-route-id="@doc.Id" class="action-btn primary" title="Voir">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a asp-action="Download" asp-route-id="@doc.Id" class="action-btn" title="Télécharger">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                        <button type="button" class="action-btn danger" title="Supprimer"
+                                                onclick="confirmDelete('@doc.Id', '@doc.Title')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        @if (ViewBag.TotalPages > 1)
+        {
+            <nav>
+                <ul class="pagination">
+                    <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="1" asp-route-search="@ViewBag.Search" asp-route-status="@ViewBag.Status">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                    {
+                        <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="@i" asp-route-search="@ViewBag.Search" asp-route-status="@ViewBag.Status">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="@ViewBag.TotalPages" asp-route-search="@ViewBag.Search" asp-route-status="@ViewBag.Status">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer « <strong id="deleteDocTitle"></strong> » ?</p>
+                <p class="text-muted mb-0">Cette action est irréversible.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form asp-action="Delete" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" id="deleteDocId" />
+                    <button type="submit" class="btn btn-danger">Supprimer le document</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(DocumentStatus status)
+    {
+        return status switch
+        {
+            DocumentStatus.Draft => "draft",
+            DocumentStatus.Pending => "pending",
+            DocumentStatus.InProgress => "in-progress",
+            DocumentStatus.Completed => "completed",
+            DocumentStatus.Rejected => "rejected",
+            DocumentStatus.Expired => "draft",
+            _ => "draft"
+        };
+    }
+
+    string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+}
+
+<script>
+    function confirmDelete(id, title) {
+        document.getElementById('deleteDocId').value = id;
+        document.getElementById('deleteDocTitle').textContent = title;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+</script>

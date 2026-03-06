@@ -1,0 +1,225 @@
+@model SoftSign.Application.DTOs.WorkflowDetailDto
+
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-diagram-3"></i>
+        @Model.Name
+    </h2>
+    <div class="page-actions">
+        <a asp-action="Index" class="btn btn-secondary btn-luxury">
+            <i class="bi bi-arrow-left me-1"></i>Retour à la liste
+        </a>
+        <a asp-action="Create" class="btn btn-primary btn-gold">
+            <i class="bi bi-plus-circle me-1"></i>Nouveau workflow
+        </a>
+    </div>
+</div>
+
+@* Success/Error Messages *@
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-1"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@* Workflow Info Card *@
+<div class="card card-luxury mb-4">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-info-circle me-2"></i>Informations du workflow
+            </h5>
+            <div>
+                @if (Model.IsActive)
+                {
+                    <span class="badge badge-success">
+                        <i class="bi bi-check-circle me-1"></i>Actif
+                    </span>
+                }
+                else
+                {
+                    <span class="badge badge-inactive">
+                        <i class="bi bi-pause-circle me-1"></i>Inactif
+                    </span>
+                }
+                @if (Model.IsDefault)
+                {
+                    <span class="badge badge-default ms-1">
+                        <i class="bi bi-star me-1"></i>Par défaut
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Nom</dt>
+                    <dd class="col-sm-8">@Model.Name</dd>
+                    
+                    @if (!string.IsNullOrEmpty(Model.Description))
+                    {
+                        <dt class="col-sm-4">Description</dt>
+                        <dd class="col-sm-8">@Model.Description</dd>
+                    }
+                    
+                    <dt class="col-sm-4">Créé par</dt>
+                    <dd class="col-sm-8">@Model.CreatedBy</dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Date de création</dt>
+                    <dd class="col-sm-8">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</dd>
+                    
+                    @if (Model.UpdatedAt.HasValue)
+                    {
+                        <dt class="col-sm-4">Dernière modification</dt>
+                        <dd class="col-sm-8">@Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")</dd>
+                    }
+                    
+                    <dt class="col-sm-4">Nombre d'étapes</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge badge-steps">@Model.Steps.Count étapes</span>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Steps Timeline *@
+<div class="card card-luxury">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-list-ol me-2"></i>Étapes du workflow
+        </h5>
+    </div>
+    <div class="card-body">
+        @if (!Model.Steps.Any())
+        {
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-list-ol d-block mb-2" style="font-size: 2rem;"></i>
+                <p>Aucune étape définie pour ce workflow.</p>
+            </div>
+        }
+        else
+        {
+            <div class="workflow-timeline">
+                @foreach (var step in Model.Steps.OrderBy(s => s.StepOrder))
+                {
+                    <div class="workflow-step-item">
+                        <div class="step-number">
+                            @step.StepOrder
+                        </div>
+                        <div class="step-content">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-@GetStepIcon(step.StepType) me-2"></i>
+                                    @step.Name
+                                </h6>
+                                <span class="badge badge-step-type">
+                                    @GetStepTypeBadge(step.StepType)
+                                </span>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted small">
+                                        <strong>Type:</strong> @GetStepTypeName(step.StepType)
+                                    </p>
+                                    @if (!string.IsNullOrEmpty(step.AssignedRoleName))
+                                    {
+                                        <p class="mb-1 text-muted small">
+                                            <strong>Rôle:</strong> @step.AssignedRoleName
+                                        </p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(step.AssignedUserName))
+                                    {
+                                        <p class="mb-1 text-muted small">
+                                            <strong>Utilisateur:</strong> @step.AssignedUserName
+                                        </p>
+                                    }
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted small">
+                                        <strong>Niveau de signature:</strong> @GetSignatureLevelName(step.RequiredSignatureLevel)
+                                    </p>
+                                    @if (step.IsCompleted)
+                                    {
+                                        <p class="mb-1 text-success small">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            Complété le @step.CompletedAt?.ToString("dd/MM/yyyy HH:mm")
+                                        </p>
+                                    }
+                                </div>
+                            </div>
+                            
+                            @if (!string.IsNullOrEmpty(step.Instructions))
+                            {
+                                <div class="step-instructions">
+                                    <strong>Instructions:</strong>
+                                    <p class="mb-0">@step.Instructions</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@functions {
+    string GetStepIcon(SoftSign.Domain.Enums.StepType stepType) {
+        return stepType switch {
+            SoftSign.Domain.Enums.StepType.Signature => "bi-pen-fill",
+            SoftSign.Domain.Enums.StepType.Validation => "bi-check2-all",
+            SoftSign.Domain.Enums.StepType.Paraphe => "bi-check",
+            _ => "bi-circle"
+        };
+    }
+    
+    string GetStepTypeName(SoftSign.Domain.Enums.StepType stepType) {
+        return stepType switch {
+            SoftSign.Domain.Enums.StepType.Signature => "Signature",
+            SoftSign.Domain.Enums.StepType.Validation => "Validation",
+            SoftSign.Domain.Enums.StepType.Paraphe => "Paraphe",
+            _ => stepType.ToString()
+        };
+    }
+    
+    string GetStepTypeBadge(SoftSign.Domain.Enums.StepType stepType) {
+        return stepType switch {
+            SoftSign.Domain.Enums.StepType.Signature => "Signature",
+            SoftSign.Domain.Enums.StepType.Validation => "Validation",
+            SoftSign.Domain.Enums.StepType.Paraphe => "Paraphe",
+            _ => stepType.ToString()
+        };
+    }
+    
+    string GetSignatureLevelName(SoftSign.Domain.Enums.SignatureLevel level) {
+        return level switch {
+            SoftSign.Domain.Enums.SignatureLevel.Initial => "Initiale",
+            SoftSign.Domain.Enums.SignatureLevel.Signature => "Signature",
+            SoftSign.Domain.Enums.SignatureLevel.Paraphe => "Paraphe",
+            SoftSign.Domain.Enums.SignatureLevel.None => "Aucun",
+            _ => level.ToString()
+        };
+    }
+}

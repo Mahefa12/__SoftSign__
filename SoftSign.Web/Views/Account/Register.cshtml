@@ -1,0 +1,174 @@
+@model SoftSign.Application.DTOs.RegisterDto
+
+@{
+    ViewData["Title"] = "Inscription";
+    Layout = "_Layout";
+}
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="login-logo">
+                <i class="bi bi-file-earmark-check-fill"></i>
+            </div>
+            <h1 class="login-title">Créer un compte</h1>
+            <p class="login-subtitle">Rejoignez SoftSign dès aujourdhui</p>
+        </div>
+
+        <form asp-action="Register" method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="FirstName" class="form-label">Prénom</label>
+                    <input asp-for="FirstName" class="form-control" placeholder="John" />
+                    <span asp-validation-for="FirstName" class="text-danger"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="LastName" class="form-label">Nom</label>
+                    <input asp-for="LastName" class="form-control" placeholder="Doe" />
+                    <span asp-validation-for="LastName" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label">Adresse e-mail</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input asp-for="Email" class="form-control" placeholder="john.doe@example.com" />
+                </div>
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="PhoneNumber" class="form-label">Numéro de téléphone (Optionnel)</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                    <input asp-for="PhoneNumber" class="form-control" placeholder="+1 234 567 8900" />
+                </div>
+                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label">Mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input asp-for="Password" class="form-control" type="password" placeholder="Créez un mot de passe sécurisé" />
+                </div>
+                <span asp-validation-for="Password" class="text-danger"></span>
+                <div class="form-text">Au moins 6 caractères avec un mélange de lettres et de chiffres.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ConfirmPassword" class="form-label">Confirmer le mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                    <input asp-for="ConfirmPassword" class="form-control" type="password" placeholder="Confirmez votre mot de passe" />
+                </div>
+                <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Role" class="form-label">Sinscrire en tant que</label>
+                <select asp-for="Role" class="form-select">
+                    <option value="User">Utilisateur</option>
+                    <option value="Manager">Gestionnaire</option>
+                </select>
+                <span asp-validation-for="Role" class="text-danger"></span>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="termsCheck" required />
+                <label class="form-check-label" for="termsCheck">
+                    J'accepte les <a asp-controller="Home" asp-action="Terms" class="text-gold text-decoration-none">Conditions</a> 
+                    et <a asp-controller="Home" asp-action="Privacy" class="text-gold text-decoration-none">Politique de confidentialité</a>
+                </label>
+            </div>
+
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-person-plus me-2"></i>Créer un compte
+                </button>
+            </div>
+        </form>
+
+        <div class="text-center mt-4">
+            <p class="mb-0">Vous avez déjà un compte ? <a asp-action="Login" class="text-gold text-decoration-none fw-semibold">Se connecter</a></p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1C1C1C 0%, #2D2D2D 100%);
+        padding: 24px;
+    }
+    .login-card {
+        width: 100%;
+        max-width: 480px;
+        background: #FFFFFF;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        padding: 40px;
+    }
+    .login-logo {
+        width: 56px;
+        height: 56px;
+        background: #C6A75E;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+        font-size: 1.5rem;
+        color: #FFFFFF;
+    }
+    .login-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #111111;
+        margin: 0 0 8px 0;
+    }
+    .login-subtitle {
+        font-size: 0.875rem;
+        color: #6B6B6B;
+        margin: 0;
+    }
+    .input-group-text {
+        background: #F3F4F6;
+        border: 1px solid #E5E5E5;
+        border-right: none;
+        color: #6B6B6B;
+    }
+    .form-control {
+        border: 1px solid #E5E5E5;
+        border-left: none;
+    }
+    .form-control:focus {
+        border-color: #C6A75E;
+        box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.1);
+    }
+    .btn-primary {
+        background: #C6A75E;
+        border-color: #C6A75E;
+    }
+    .btn-primary:hover {
+        background: #A88B45;
+        border-color: #A88B45;
+    }
+    .text-gold {
+        color: #C6A75E !important;
+    }
+    .form-select:focus {
+        border-color: #C6A75E;
+        box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.1);
+    }
+</style>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

@@ -1,0 +1,113 @@
+@model IEnumerable<SoftSign.Application.DTOs.DocumentDto>
+@using SoftSign.Domain.Enums
+
+@{
+    ViewData["Title"] = "Actions en attente";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-list-check"></i>
+        Actions en attente
+    </h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <!-- Filters -->
+        <form asp-action="Index" method="get" class="filters-bar">
+            <select name="status" class="form-select">
+                <option value="">Tous les statuts</option>
+                <option value="Pending" selected="@(ViewBag.Status == "Pending")">En attente</option>
+                <option value="InProgress" selected="@(ViewBag.Status == "InProgress")">En cours</option>
+            </select>
+            <button type="submit" class="btn btn-outline">
+                <i class="bi bi-funnel me-1"></i>Filtrer
+            </button>
+            <span class="filters-results ms-auto">@ViewBag.TotalCount documents</span>
+        </form>
+
+        <!-- Documents Grid -->
+        @if (!Model.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <h4 class="empty-state-title">Tout est à jour !</h4>
+                <p class="empty-state-description">Vous n'avez aucun document en attente à examiner.</p>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4">
+                @foreach (var doc in Model)
+                {
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100" style="cursor: pointer;" onclick="window.location.href='@Url.Action("Review", "Workflow", new { id = doc.Id })'">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <span class="badge badge-@GetStatusBadgeClass(doc.Status)">@doc.StatusDisplay</span>
+                                    <small class="text-muted">@doc.CreatedAt.ToString("MMM dd")</small>
+                                </div>
+                                <h5 class="card-title mb-2" style="font-size: 1rem;">@doc.Title</h5>
+                                <p class="text-muted small mb-3">
+                                    <i class="bi bi-person me-1"></i>@doc.CreatedByName
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="bi bi-pen me-1 text-gold"></i>@doc.CompletedSignatureCount/@doc.SignatureCount signatures
+                                    </small>
+                                    <a asp-action="Review" asp-route-id="@doc.Id" class="btn btn-sm btn-primary">
+                                        Réviser
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Pagination -->
+        @if (ViewBag.TotalPages > 1)
+        {
+            <nav>
+                <ul class="pagination">
+                    <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="1" asp-route-status="@ViewBag.Status">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                    {
+                        <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="@i" asp-route-status="@ViewBag.Status">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="@ViewBag.TotalPages" asp-route-status="@ViewBag.Status">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(DocumentStatus status)
+    {
+        return status switch
+        {
+            DocumentStatus.Draft => "draft",
+            DocumentStatus.Pending => "pending",
+            DocumentStatus.InProgress => "in-progress",
+            DocumentStatus.Completed => "completed",
+            DocumentStatus.Rejected => "rejected",
+            DocumentStatus.Expired => "draft",
+            _ => "draft"
+        };
+    }
+}

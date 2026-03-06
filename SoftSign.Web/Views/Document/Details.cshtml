@@ -1,0 +1,553 @@
+@model SoftSign.Application.DTOs.DocumentDto
+@using SoftSign.Domain.Enums
+@using System.Linq
+
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+@Html.AntiForgeryToken()
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-file-earmark-pdf"></i>
+        @Model.Title
+    </h2>
+    <div class="d-flex gap-2">
+        @if (!string.IsNullOrEmpty(Model.SignedFilePath))
+        {
+            <a asp-action="Download" asp-route-id="@Model.Id" asp-route-signed="true" class="btn btn-outline">
+                <i class="bi bi-download me-2"></i>Télécharger signé
+            </a>
+        }
+        <a asp-action="Download" asp-route-id="@Model.Id" class="btn btn-outline">
+            <i class="bi bi-download me-2"></i>Télécharger
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- LEFT: Document Preview -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    Aperçu du document
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge badge-@GetStatusBadgeClass(Model.Status)">@Model.StatusDisplay</span>
+                    <span class="text-muted">Page 1 sur 1</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="docPreview" style="overflow: auto; max-height: 80vh; background: #525659; padding: 20px;" data-document-id="@Model.Id">
+                    @{
+                        var hasSigned = !string.IsNullOrEmpty(Model.SignedFilePath);
+                        var pdfUrl = Url.Action("Download", "Document", new { id = Model.Id, signed = hasSigned }, Context.Request.Scheme);
+                    }
+                    
+                    <!-- PDF wrapper with zones inside - support multiple pages -->
+                    @{
+                        var pageWidth = ViewBag.PageWidth ?? 595.28;
+                        var pageHeight = ViewBag.PageHeight ?? 841.89;
+                        
+                        // Group zones by page number
+                        var zonesByPage = Model.SignatureZones?.GroupBy(z => z.PageNumber).OrderBy(g => g.Key).ToList() ?? new List<IGrouping<int, SignatureZone>>();
+                        var totalPages = Math.Max(1, zonesByPage.Any() ? zonesByPage.Max(g => g.Key) : 1);
+                    }
+                    
+                    <!-- Render each page with its zones -->
+                    @for (int pageNum = 1; pageNum <= totalPages; pageNum++)
+                    {
+                        var pageZones = zonesByPage.FirstOrDefault(g => g.Key == pageNum)?.ToList() ?? new List<SignatureZone>();
+                        <div class="pdf-page-container" data-page-number="@pageNum" style="position: relative; width: @(pageWidth)px; height: @(pageHeight)px; margin: 0 auto 20px auto; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                            <!-- PDF Viewer with no internal scrolling - zones are positioned relative to this page -->
+                            <embed src="@pdfUrl#page=@pageNum"
+                                   type="application/pdf"
+                                   style="width: 100%; height: 100%;"
+                                   class="pdf-viewer" />
+                            
+                            <!-- Signature Zones Overlay for this page - positioned absolutely within the page container -->
+                            @if (!hasSigned && pageZones.Any())
+                            {
+                                <div class="signature-zones-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
+                                    @foreach (var zone in pageZones.OrderBy(z => z.Order))
+                                    {
+                                        // PositionY is stored in top-left (canvas) coordinates
+                                        // Use directly for HTML display (top-left origin)
+                                        var htmlY = zone.PositionY;
+                                        var zoneState = zone.IsSigned ? "signed" : (zone.IsRequired ? "pending" : "pending");
+                                        <div class="signature-zone @zoneState" 
+                                             id="zone-@zone.Id"
+                                             data-zone-id="@zone.Id"
+                                             data-zone-page="@zone.PageNumber"
+                                             data-zone-width="@zone.Width"
+                                             data-zone-height="@zone.Height"
+                                             style="position: absolute; left: @(zone.PositionX)px; top: @(htmlY)px; width: @(zone.Width)px; height: @(zone.Height)px; pointer-events: auto;">
+                                            <div class="signature-zone-label">
+                                                @(zone.Label ?? "Signer ici")
+                                            </div>
+                                            
+                                            @if (zone.IsSigned)
+                                            {
+                                                <!-- Signed State: Show Signature Image -->
+                                                <img src="@zone.SignatureImage" class="signature-image" alt="Signature" />
+                                                <div class="signature-zone-badge">
+                                                    <i class="bi bi-check-circle"></i> Signé
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <!-- Pending/Active State: Show Placeholder -->
+                                                <span class="signature-zone-placeholder">Signer ici</span>
+                                                
+                                                <!-- Canvas Container for Drawing -->
+                                                <div class="signature-canvas-container">
+                                                    <canvas id="canvas-@zone.Id" 
+                                                            class="signature-canvas"
+                                                            data-zone-id="@zone.Id"
+                                                            width="@((int)zone.Width)" 
+                                                            height="@((int)zone.Height)"></canvas>
+                                                    <div class="signature-canvas-toolbar">
+                                                        <button type="button" class="signature-toolbar-btn clear" onclick="clearSignature('@zone.Id')">
+                                                            <i class="bi bi-x-lg"></i> Effacer
+                                                        </button>
+                                                        <button type="button" class="signature-toolbar-btn save" onclick="saveSignature('@zone.Id')">
+                                                            <i class="bi bi-check-lg"></i> Sauvegarder
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    
+                    <div class="pdf-fallback" style="display: none;">
+                        <div class="document-preview-placeholder">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                            <p>Prévisualisation du document PDF</p>
+                            <small class="text-muted">@Model.OriginalFileName</small>
+                            <a href="@pdfUrl" class="btn btn-outline mt-3" target="_blank">
+                                <i class="bi bi-download me-2"></i>Ouvrir dans une nouvelle fenêtre
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-clock-history"></i>
+                    Journal d'activité
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <p class="timeline-title mb-1">Document créé par @Model.CreatedByName</p>
+                            <span class="timeline-time">@Model.CreatedAt.ToString("MMMM dd, yyyy HH:mm")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Metadata, Workflow, Actions -->
+    <div class="col-lg-4">
+        <!-- Signature Zones -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title">
+                    <i class="bi bi-grid"></i>
+                    Zones de signature
+                </h5>
+                <a asp-controller="Signature" asp-action="CreateZone" asp-route-documentId="@Model.Id" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus"></i> Ajouter
+                </a>
+            </div>
+            <div class="card-body">
+                @if (Model.SignatureCount == 0)
+                {
+                    <div class="text-center py-3 text-muted">
+                        <i class="bi bi-grid fs-4 d-block mb-2"></i>
+                        <small>Aucune zone de signature définie</small>
+                    </div>
+                }
+                else
+                {
+                    <ul class="list-group list-group-flush">
+                        @for (int i = 0; i < Model.SignatureCount; i++)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>Zone @(i + 1)</span>
+                                <span class="badge badge-@(i < Model.CompletedSignatureCount ? "completed" : "pending")">
+                                    @(i < Model.CompletedSignatureCount ? "Signé" : "En attente")
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+
+        <!-- Document Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-info-circle"></i>
+                    Détails du document
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Titre</span>
+                        <span class="info-value">@Model.Title</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Statut</span>
+                        <span class="badge badge-@GetStatusBadgeClass(Model.Status)">@Model.StatusDisplay</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Fichier</span>
+                        <span class="info-value">@Model.OriginalFileName (@FormatFileSize(Model.FileSize))</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Version</span>
+                        <span class="info-value">v@(Model.Version)</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Créé le</span>
+                        <span class="info-value">@Model.CreatedAt.ToString("MMM dd, yyyy")</span>
+                    </div>
+                    @if (Model.ExpiresAt.HasValue)
+                    {
+                        <div class="info-item">
+                            <span class="info-label">Expire le</span>
+                            <span class="info-value @(Model.ExpiresAt < DateTime.UtcNow ? "text-danger" : "")">@Model.ExpiresAt.Value.ToString("MMM dd, yyyy")</span>
+                        </div>
+                    }
+                </div>
+                
+                @if (!string.IsNullOrEmpty(Model.Description))
+                {
+                    <div class="mt-3 pt-3 border-top">
+                        <span class="info-label">Description</span>
+                        <p class="info-value mb-0">@Model.Description</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Workflow Stepper -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-diagram-3"></i>
+                    Progression du workflow
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="workflow-stepper">
+                    <div class="workflow-step completed">
+                        <div class="step-marker completed">
+                            <i class="bi bi-check"></i>
+                        </div>
+                        <div class="step-content">
+                            <h6 class="step-title">Document créé</h6>
+                            <p class="step-description">@Model.CreatedAt.ToString("MMM dd, HH:mm")</p>
+                        </div>
+                    </div>
+                    <div class="workflow-step @GetWorkflowStepClass(Model.Status)">
+                        <div class="step-marker @GetWorkflowStepClass(Model.Status)">
+                            @if (Model.Status == DocumentStatus.Completed)
+                            {
+                                <i class="bi bi-check"></i>
+                            }
+                            else
+                            {
+                                <span>2</span>
+                            }
+                        </div>
+                        <div class="step-content">
+                            <h6 class="step-title">Signatures en attente</h6>
+                            <p class="step-description">@Model.CompletedSignatureCount / @Model.SignatureCount complétées</p>
+                        </div>
+                    </div>
+                    @if (Model.Status == DocumentStatus.Completed)
+                    {
+                        <div class="workflow-step completed">
+                            <div class="step-marker completed">
+                                <i class="bi bi-check"></i>
+                            </div>
+                            <div class="step-content">
+                                <h6 class="step-title">Terminé</h6>
+                                <p class="step-description">Toutes les signatures collectées</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">
+                    <i class="bi bi-gear"></i>
+                    Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Status == DocumentStatus.Draft)
+                {
+                    <form asp-action="StartWorkflow" method="post" class="mb-3">
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-send me-2"></i>Démarrer le workflow
+                        </button>
+                    </form>
+                }
+                
+                @if (Model.SignatureZones != null && Model.SignatureZones.Any())
+                {
+                }
+
+                <a asp-action="Versions" asp-route-id="@Model.Id" class="btn btn-outline w-100">
+                    <i class="bi bi-clock-history me-2"></i>Voir les versions
+                </a>
+            </div>
+        </div>
+
+        <!-- Workflow Customization (for documents with workflow) -->
+        @if (!string.IsNullOrEmpty(Model.WorkflowName))
+        {
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-diagram-3"></i>
+                        Personnaliser le workflow
+                    </h5>
+                    <span class="badge bg-info">@Model.WorkflowName</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        Modifiez les affectations des étapes ci-dessous. Ces modifications s'appliqueront uniquement à ce document.
+                    </p>
+                    <div id="workflowCustomizationList">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-outline-primary" onclick="loadWorkflowSteps('@Model.Id')">
+                                <i class="bi bi-pencil me-2"></i>Personnaliser les étapes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(DocumentStatus status)
+    {
+        return status switch
+        {
+            DocumentStatus.Draft => "draft",
+            DocumentStatus.Pending => "pending",
+            DocumentStatus.InProgress => "in-progress",
+            DocumentStatus.Completed => "completed",
+            DocumentStatus.Rejected => "rejected",
+            DocumentStatus.Expired => "draft",
+            _ => "draft"
+        };
+    }
+
+    string GetWorkflowStepClass(DocumentStatus status)
+    {
+        return status == DocumentStatus.Pending || status == DocumentStatus.InProgress || status == DocumentStatus.Completed ? "current" : "pending";
+    }
+
+    string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+}
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="~/js/signature.js"></script>
+    <script>
+        async function loadWorkflowSteps(documentId) {
+            const container = document.getElementById('workflowCustomizationList');
+            container.innerHTML = '<div class="text-center"><i class="bi bi-arrow-repeat spin"></i><p>Chargement...</p></div>';
+            
+            try {
+                const response = await fetch(`/Document/GetWorkflowSteps?documentId=${documentId}`);
+                if (!response.ok) throw new Error('Failed to load steps');
+                
+                const steps = await response.json();
+                
+                if (!steps || steps.length === 0) {
+                    container.innerHTML = '<div class="alert alert-warning mb-0">Aucune étape de workflow trouvée</div>';
+                    return;
+                }
+                
+                let html = '<div class="mb-3">';
+                steps.forEach((step, index) => {
+                    const stepTypeName = getStepTypeName(step.stepType);
+                    const isCustomized = step.customAssignedUserId || step.customAssignedRoleId;
+                    
+                    html += `
+                        <div class="card mb-2" style="background: var(--color-gray-light);">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-secondary">Étape ${index + 1}</span>
+                                    <span class="badge bg-info">${stepTypeName}</span>
+                                </div>
+                                <h6 class="mb-1">${step.name || 'Étape ' + (index + 1)}</h6>
+                                ${step.instructions ? `<p class="text-muted small mb-2">${step.instructions}</p>` : ''}
+                                <input type="hidden" name="steps[${index}].WorkflowStepId" value="${step.workflowStepId}" />
+                                <input type="hidden" name="steps[${index}].DocumentId" value="${documentId}" />
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Assigner à un utilisateur</label>
+                                    <select class="form-control user-select" name="steps[${index}].CustomAssignedUserId" id="userSelect${index}" style="width: 100%;">
+                                        <option value="">Sélectionner un utilisateur...</option>
+                                        ${step.customAssignedUserId ? `<option value="${step.customAssignedUserId}" selected>${step.originalAssignedUserName || 'Utilisateur actuel'}</option>` : ''}
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Ou assigner à un rôle</label>
+                                    <select class="form-control role-select" name="steps[${index}].CustomAssignedRoleId" id="roleSelect${index}" style="width: 100%;">
+                                        <option value="">Sélectionner un rôle...</option>
+                                        ${step.customAssignedRoleId ? `<option value="${step.customAssignedRoleId}" selected>${step.originalAssignedRoleName || 'Rôle actuel'}</option>` : ''}
+                                    </select>
+                                </div>
+                                ${isCustomized ? '<small class="text-success"><i class="bi bi-check-circle"></i> Personnalisé</small>' : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                html += `<button type="button" class="btn btn-primary w-100" onclick="saveWorkflowCustomization('${documentId}')">
+                            <i class="bi bi-save me-2"></i>Enregistrer les modifications
+                         </button>`;
+                
+                container.innerHTML = html;
+                
+                // Initialize Select2 for user dropdowns
+                document.querySelectorAll('.user-select').forEach(el => {
+                    $(el).select2({
+                        ajax: {
+                            url: '/Document/SearchUsers',
+                            dataType: 'json',
+                            delay: 250,
+                            processResults: function(data) {
+                                return {
+                                    results: data.map(u => ({ id: u.id, text: u.name }))
+                                };
+                            }
+                        },
+                        placeholder: 'Rechercher un utilisateur...',
+                        minimumInputLength: 1
+                    });
+                });
+                
+                // Initialize Select2 for role dropdowns
+                document.querySelectorAll('.role-select').forEach(el => {
+                    $(el).select2({
+                        ajax: {
+                            url: '/Document/SearchRoles',
+                            dataType: 'json',
+                            delay: 250,
+                            processResults: function(data) {
+                                return {
+                                    results: data.map(r => ({ id: r.id, text: r.name }))
+                                };
+                            }
+                        },
+                        placeholder: 'Rechercher un rôle...',
+                        minimumInputLength: 1
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading workflow steps:', error);
+                container.innerHTML = '<div class="alert alert-danger mb-0">Erreur lors du chargement des étapes</div>';
+            }
+        }
+
+        function getStepTypeName(stepType) {
+            const types = {
+                0: 'Validation',
+                1: 'Signature',
+                2: 'Paraphe'
+            };
+            return types[stepType] || 'Inconnu';
+        }
+
+        async function saveWorkflowCustomization(documentId) {
+            const container = document.getElementById('workflowCustomizationList');
+            
+            // Get all select elements
+            const userSelects = container.querySelectorAll('select[name^="steps["][name$=".CustomAssignedUserId"]');
+            const roleSelects = container.querySelectorAll('select[name^="steps["][name$=".CustomAssignedRoleId"]');
+            
+            const customizations = [];
+            for (let i = 0; i < userSelects.length; i++) {
+                const userId = userSelects[i].value;
+                const roleId = roleSelects[i].value;
+                
+                if (userId || roleId) {
+                    // Get workflow step ID from hidden input
+                    const stepInput = container.querySelector(`input[name="steps[${i}].WorkflowStepId"]`);
+                    customizations.push({
+                        DocumentId: documentId,
+                        WorkflowStepId: stepInput.value,
+                        CustomAssignedUserId: userId || null,
+                        CustomAssignedRoleId: roleId || null
+                    });
+                }
+            }
+
+            try {
+                const response = await fetch('/Document/CustomizeWorkflow', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(customizations)
+                });
+
+                if (response.ok) {
+                    alert('Workflow personnalisé avec succès !');
+                    location.reload();
+                } else {
+                    const error = await response.text();
+                    alert('Erreur: ' + error);
+                }
+            } catch (error) {
+                console.error('Error saving customization:', error);
+                alert('Erreur lors de la sauvegarde');
+            }
+        }
+    </script>
+}

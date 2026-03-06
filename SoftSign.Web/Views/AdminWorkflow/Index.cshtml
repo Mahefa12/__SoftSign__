@@ -1,0 +1,153 @@
+@model IEnumerable<SoftSign.Application.DTOs.WorkflowListDto>
+
+@{
+    ViewData["Title"] = "Gestion des Workflows";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-diagram-3"></i>
+        Gestion des Workflows
+    </h2>
+    <a asp-action="Create" class="btn btn-primary btn-gold">
+        <i class="bi bi-plus-circle me-1"></i>Créer un workflow
+    </a>
+</div>
+
+@* Success/Error Messages *@
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-1"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card card-luxury">
+    <div class="card-body">
+        @if (!Model.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-diagram-3"></i>
+                </div>
+                <h4 class="empty-state-title">Aucun flux de travail</h4>
+                <p class="empty-state-description">Commencez par créer votre premier workflow.</p>
+                <a asp-action="Create" class="btn btn-primary btn-gold">
+                    <i class="bi bi-plus-circle me-1"></i>Créer un workflow
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive table-luxury">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Créé par</th>
+                            <th>Date de création</th>
+                            <th>Nombre d'étapes</th>
+                            <th>Statut</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var workflow in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-action="View" asp-route-id="@workflow.Id" class="text-decoration-none fw-semibold text-primary">
+                                        @workflow.Name
+                                    </a>
+                                </td>
+                                <td>@workflow.CreatedBy</td>
+                                <td>@workflow.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                <td>
+                                    <span class="badge badge-steps">@workflow.StepCount étapes</span>
+                                </td>
+                                <td>
+                                    @if (workflow.IsActive)
+                                    {
+                                        <span class="badge badge-success">
+                                            <i class="bi bi-check-circle me-1"></i>Actif
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-inactive">
+                                            <i class="bi bi-pause-circle me-1"></i>Inactif
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a asp-action="View" asp-route-id="@workflow.Id" class="btn btn-luxury-outline" title="Voir">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <form asp-action="Duplicate" asp-route-id="@workflow.Id" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-luxury-outline" title="Dupliquer">
+                                                <i class="bi bi-copy"></i>
+                                            </button>
+                                        </form>
+                                        <button type="button" class="btn btn-luxury-outline text-danger" 
+                                                onclick="showDeleteModal('@workflow.Id', '@workflow.Name')" 
+                                                title="Supprimer">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@* Delete Confirmation Modal *@
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer le workflow <strong id="deleteWorkflowName"></strong> ?</p>
+                <p class="text-muted mb-0">Cette action est irréversible.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form id="deleteForm" asp-action="Delete" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" id="deleteWorkflowId" />
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Supprimer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function showDeleteModal(id, name) {
+            document.getElementById('deleteWorkflowId').value = id;
+            document.getElementById('deleteWorkflowName').textContent = name;
+            var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+    </script>
+}

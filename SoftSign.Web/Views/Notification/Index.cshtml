@@ -1,0 +1,122 @@
+@model IEnumerable<SoftSign.Application.Interfaces.NotificationDto>
+
+@{
+    ViewData["Title"] = "Notifications";
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-bell"></i>
+        Notifications
+    </h2>
+    @if (Model.Any())
+    {
+        <form asp-action="MarkAllAsRead" method="post">
+            <button type="submit" class="btn btn-outline">
+                <i class="bi bi-check-all me-2"></i>Tout marquer comme lu
+            </button>
+        </form>
+    }
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        @if (!Model.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-bell-slash"></i>
+                </div>
+                <h4 class="empty-state-title">Aucune notification</h4>
+                <p class="empty-state-description">Vous êtes à jour !</p>
+            </div>
+        }
+        else
+        {
+            <div class="list-group list-group-flush">
+                @foreach (var notification in Model)
+                {
+                    <div class="list-group-item list-group-item-action @(notification.IsRead ? "" : "bg-light")" id="notification-@notification.Id" style="border-bottom: 1px solid var(--color-border-light);">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="me-2">@GetNotificationIcon(notification.Type)</span>
+                                    <h6 class="mb-0 @(notification.IsRead ? "" : "fw-semibold")" style="color: var(--color-text);">@notification.Title</h6>
+                                    @if (!notification.IsRead)
+                                    {
+                                        <span class="badge badge-pending ms-2">Nouveau</span>
+                                    }
+                                </div>
+                                <p class="mb-1 text-muted" style="font-size: 0.875rem;">@notification.Message</p>
+                                <small class="text-muted">@notification.CreatedAt.ToString("MMM dd, yyyy HH:mm")</small>
+                            </div>
+                            <div class="ms-3 d-flex gap-2">
+                                @if (!string.IsNullOrEmpty(notification.Link))
+                                {
+                                    <a href="@notification.Link" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-arrow-right"></i>
+                                    </a>
+                                }
+                                @if (!notification.IsRead)
+                                {
+                                    <form asp-action="MarkAsRead" method="post">
+                                        <input type="hidden" name="id" value="@notification.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline" title="Marquer comme lu">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Pagination -->
+        @if (ViewBag.TotalPages > 1)
+        {
+            <div class="card-footer bg-white" style="border-top: 1px solid var(--color-border-light);">
+                <nav>
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="1">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </a>
+                        </li>
+                        @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                        {
+                            <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                                <a class="page-link" asp-action="Index" asp-route-page="@i">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="@ViewBag.TotalPages">
+                                <i class="bi bi-chevron-double-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>
+
+@functions {
+    string GetNotificationIcon(SoftSign.Domain.Enums.NotificationType type)
+    {
+        return type switch
+        {
+            SoftSign.Domain.Enums.NotificationType.Email => "<i class='bi bi-envelope text-primary fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.InApp => "<i class='bi bi-bell text-info fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.SMS => "<i class='bi bi-phone text-success fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.Document => "<i class='bi bi-file-earmark-text text-primary fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.Signature => "<i class='bi bi-pen text-success fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.Workflow => "<i class='bi bi-arrow-right-circle text-info fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.Approval => "<i class='bi bi-check-circle text-success fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.Rejection => "<i class='bi bi-x-circle text-danger fs-5'></i>",
+            SoftSign.Domain.Enums.NotificationType.Correction => "<i class='bi bi-arrow-counterclockwise text-warning fs-5'></i>",
+            _ => "<i class='bi bi-bell text-secondary fs-5'></i>"
+        };
+    }
+}

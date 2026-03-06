@@ -1,0 +1,149 @@
+@model SoftSign.Application.DTOs.LoginDto
+
+@{
+    ViewData["Title"] = "Connexion";
+    Layout = "_Layout";
+}
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="login-logo">
+                <i class="bi bi-file-earmark-check-fill"></i>
+            </div>
+            <h1 class="login-title">Bon retour</h1>
+            <p class="login-subtitle">Connectez-vous pour continuer sur SoftSign</p>
+        </div>
+
+        <form asp-action="Login" method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label">Adresse e-mail</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input asp-for="Email" class="form-control" placeholder="Entrez votre e-mail" />
+                </div>
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label">Mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input asp-for="Password" class="form-control" type="password" placeholder="Entrez votre mot de passe" id="passwordInput" />
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword()">
+                        <i class="bi bi-eye" id="toggleIcon"></i>
+                    </button>
+                </div>
+                <span asp-validation-for="Password" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="RememberMe" class="form-check-input" />
+                <label asp-for="RememberMe" class="form-check-label">Se souvenir de moi</label>
+            </div>
+
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Se connecter
+                </button>
+            </div>
+        </form>
+
+        <div class="text-center mt-4">
+            <p class="mb-0">Vous n'avez pas de compte ? <a asp-action="Register" class="text-gold text-decoration-none fw-semibold">Créer un compte</a></p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1C1C1C 0%, #2D2D2D 100%);
+    }
+    .login-card {
+        width: 100%;
+        max-width: 420px;
+        background: #FFFFFF;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        padding: 48px;
+    }
+    .login-logo {
+        width: 56px;
+        height: 56px;
+        background: #C6A75E;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+        font-size: 1.5rem;
+        color: #FFFFFF;
+    }
+    .login-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #111111;
+        margin: 0 0 8px 0;
+    }
+    .login-subtitle {
+        font-size: 0.875rem;
+        color: #6B6B6B;
+        margin: 0;
+    }
+    .input-group-text {
+        background: #F3F4F6;
+        border: 1px solid #E5E5E5;
+        border-right: none;
+        color: #6B6B6B;
+    }
+    .form-control {
+        border: 1px solid #E5E5E5;
+        border-left: none;
+    }
+    .form-control:focus {
+        border-color: #C6A75E;
+        box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.1);
+    }
+    .btn-primary {
+        background: #C6A75E;
+        border-color: #C6A75E;
+    }
+    .btn-primary:hover {
+        background: #A88B45;
+        border-color: #A88B45;
+    }
+    .text-gold {
+        color: #C6A75E !important;
+    }
+    .btn-outline-secondary {
+        border-color: #E5E5E5;
+    }
+    .btn-outline-secondary:hover {
+        background: #F3F4F6;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('passwordInput');
+            const icon = document.getElementById('toggleIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('bi-eye');
+                icon.classList.add('bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('bi-eye-slash');
+                icon.classList.add('bi-eye');
+            }
+        }
+    </script>
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}
