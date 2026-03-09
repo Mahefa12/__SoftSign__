@@ -643,25 +643,56 @@
             const formData = new FormData(form);
 
             // Get the preview container for coordinate normalization
-            const preview = document.getElementById("previewContainer");
-            const rect = preview.getBoundingClientRect();
+            const previewContainer = document.getElementById("previewContainer");
+            const previewRect = previewContainer.getBoundingClientRect();
+            const previewWidth = previewRect.width;
+            const previewHeight = previewRect.height;
+
+            // Debugging logs: Log preview container rect
+            console.log("Preview rect:", previewRect);
+            console.log("Preview width:", previewWidth);
+            console.log("Preview height:", previewHeight);
+
+            // Debugging logs: Log zone pixel values before normalization
+            if (zonePositions && Object.keys(zonePositions).length > 0) {
+                Object.values(zonePositions).forEach((z, index) => {
+                    console.log("Zone pixel " + index + ":", z.x, z.y);
+                    console.log("Zone percent " + index + ":", z.x / previewWidth, z.y / previewHeight);
+                });
+            }
 
             // Convert zonePositions to array and normalize to percentages
-            const normalizedZones = Object.values(zonePositions || {}).map(z => ({
-                zoneId: z.zoneId,
-                stepId: z.stepId,
-                signerRole: z.signerRole,
-                x: z.x / rect.width,
-                y: z.y / rect.height,
-                width: z.width / rect.width,
-                height: z.height / rect.height
-            }));
+            // Compute percentages directly from zone pixel coordinates WITHOUT any offset calculations
+            const normalizedZones = Object.values(zonePositions || {}).map(z => {
+                const percentX = z.x / previewWidth;
+                const percentY = z.y / previewHeight;
+                const percentWidth = z.width / previewWidth;
+                const percentHeight = z.height / previewHeight;
+
+                // Validation check - percentages must always stay between 0 and 1
+                if (percentX < 0 || percentX > 1 || percentY < 0 || percentY > 1) {
+                    console.error("Invalid zone percentages", percentX, percentY, "for zone:", z);
+                }
+
+                return {
+                    zoneId: z.zoneId,
+                    stepId: z.stepId,
+                    signerRole: z.signerRole,
+                    x: percentX,
+                    y: percentY,
+                    width: percentWidth,
+                    height: percentHeight
+                };
+            });
 
             // Serialize to JSON
             const zonesJson = JSON.stringify(normalizedZones);
 
             // Append to form data
             formData.append("signatureZones", zonesJson);
+
+            // Log the final payload before sending
+            console.log("Final zone payload:", zonesJson);
 
             console.log("Sending zones (as percentages):", zonesJson);
 

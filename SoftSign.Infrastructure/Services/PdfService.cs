@@ -121,42 +121,47 @@ public class PdfService : IPdfService
                 var pageWidth = page.Width.Point;
                 var pageHeight = page.Height.Point;
                 
+                // Zone coordinates are stored as percentages (0-1 range)
+                // Convert to PDF pixels
+                var percentX = zone.PositionX;
+                var percentY = zone.PositionY;
+                var percentWidth = zone.Width;
+                var percentHeight = zone.Height;
+                
                 Console.WriteLine($"=== PDF COORDINATE DEBUG ===");
                 Console.WriteLine($"Page dimensions: {pageWidth} x {pageHeight} points");
-                Console.WriteLine($"Zone coordinates (PDF bottom-left): X={zone.PositionX}, Y={zone.PositionY}, W={zone.Width}, H={zone.Height}");
+                Console.WriteLine($"Zone percentages: X={percentX}, Y={percentY}, W={percentWidth}, H={percentHeight}");
                 
-                // PositionY is stored in PDF coordinates (bottom-left origin)
-                // Use directly - no conversion needed
-                var y = zone.PositionY;
-                Console.WriteLine($"Using directly: Y={y}");
+                // Convert percentages to pixels
+                var x = percentX * pageWidth;
+                var y = percentY * pageHeight;
+                var width = percentWidth * pageWidth;
+                var height = percentHeight * pageHeight;
                 
-                // Check if zone fits on page
-                var doesZoneFit = zone.PositionY + zone.Height <= pageHeight;
-                Console.WriteLine($"Zone fits on page: {doesZoneFit} (Y={zone.PositionY} + H={zone.Height} = {zone.PositionY + zone.Height} vs pageHeight={pageHeight})");
+                Console.WriteLine($"Zone pixels (before Y flip): X={x}, Y={y}, W={width}, H={height}");
                 
-                // Get the Y position - already calculated above as zone.PositionY - zone.Height
-                // PositionY stores the TOP edge of the zone measured from the BOTTOM of the PDF page
-                // DrawImage places the image's LOWER-LEFT corner at (x, y), so we use BOTTOM edge
-                var x = zone.PositionX;
-                var width = zone.Width;
-                var height = zone.Height;
+                // RULE 5: Only flip Y when stamping PDF
+                // PDF uses bottom-left origin, but browser uses top-left
+                // Convert from browser coordinates (top-left) to PDF coordinates (bottom-left)
+                var pdfY = pageHeight - y - height;
                 
-                Console.WriteLine($"Using directly: X={x}, Y={y}");
+                Console.WriteLine($"Zone coordinates after Y flip (PDF bottom-left): X={x}, Y={pdfY}, W={width}, H={height}");
+                Console.WriteLine($"===========================");
                 
                 // Validate Y position - ensure signature stays within page bounds
                 // In PDF coordinates (bottom-left origin), Y + height should not exceed page height
-                if (y + height > pageHeight)
+                if (pdfY + height > pageHeight)
                 {
-                    Console.WriteLine($"WARNING: Y position {y} + height {height} exceeds page height {pageHeight}");
-                    y = pageHeight - height;
-                    Console.WriteLine($"Adjusted Y to: {y}");
+                    Console.WriteLine($"WARNING: Y position {pdfY} + height {height} exceeds page height {pageHeight}");
+                    pdfY = pageHeight - height;
+                    Console.WriteLine($"Adjusted Y to: {pdfY}");
                 }
                 
                 // Also ensure Y is not negative
-                if (y < 0)
+                if (pdfY < 0)
                 {
-                    Console.WriteLine($"WARNING: Y position {y} is negative, setting to 0");
-                    y = 0;
+                    Console.WriteLine($"WARNING: Y position {pdfY} is negative, setting to 0");
+                    pdfY = 0;
                 }
                 
                 // Also validate X position
@@ -171,7 +176,7 @@ public class PdfService : IPdfService
                     x = pageWidth - width;
                 }
                 
-                Console.WriteLine($"Final placement: X={x}, Y={y}, W={width}, H={height}");
+                Console.WriteLine($"Final placement: X={x}, Y={pdfY}, W={width}, H={height}");
                 Console.WriteLine($"===========================");
                 
                 // Decode and apply signature image
@@ -181,7 +186,7 @@ public class PdfService : IPdfService
                 using var image = XImage.FromStream(() => new MemoryStream(signatureImageBytes));
                 using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
                 
-                gfx.DrawImage(image, x, y, width, height);
+                gfx.DrawImage(image, x, pdfY, width, height);
                 Console.WriteLine($"Signature applied to zone {zone.Id}");
             }
             
@@ -223,22 +228,32 @@ public class PdfService : IPdfService
             var pageHeight = page.Height.Point;
             Console.WriteLine($"Page size: Width={pageWidth}, Height={pageHeight}");
             
-            // Input Y is in PDF bottom-left coordinates
-            // Use directly - no conversion needed
-            double pdfY = y;
-            Console.WriteLine($"Y (PDF bottom-left): {pdfY}");
+            // Input coordinates are in percentages (0-1 range)
+            // Convert to PDF pixels
+            var pixelX = x * pageWidth;
+            var pixelY = y * pageHeight;
+            var pixelWidth = width * pageWidth;
+            var pixelHeight = height * pageHeight;
+            
+            Console.WriteLine($"Input percentages: X={x}, Y={y}, W={width}, H={height}");
+            Console.WriteLine($"Converted to pixels: X={pixelX}, Y={pixelY}, W={pixelWidth}, H={pixelHeight}");
+            
+            // RULE 5: Only flip Y when stamping PDF
+            // PDF uses bottom-left origin, but browser uses top-left
+            var pdfY = pageHeight - pixelY - pixelHeight;
+            Console.WriteLine($"Y after flip (PDF bottom-left): {pdfY}");
             
             // Validate Y position - for PDF bottom-left coords, Y + height should NOT exceed page height
-            if (pdfY + height > pageHeight)
+            if (pdfY + pixelHeight > pageHeight)
             {
-                Console.WriteLine($"WARNING: Y position {pdfY} + height {height} = {pdfY + height} exceeds page height {pageHeight}");
+                Console.WriteLine($"WARNING: Y position {pdfY} + height {pixelHeight} = {pdfY + pixelHeight} exceeds page height {pageHeight}");
                 Console.WriteLine($"Adjusting Y to fit on page...");
-                pdfY = pageHeight - height;
+                pdfY = pageHeight - pixelHeight;
                 Console.WriteLine($"New Y position: {pdfY}");
             }
             
             // Validate coordinates are within page bounds
-            if (x < 0 || pdfY < 0 || x + width > pageWidth || pdfY + height > pageHeight)
+            if (pixelX < 0 || pdfY < 0 || pixelX + pixelWidth > pageWidth || pdfY + pixelHeight > pageHeight)
             {
                 Console.WriteLine($"WARNING: Coordinates may be out of bounds! Page: {pageWidth}x{pageHeight}");
             }
@@ -252,8 +267,8 @@ public class PdfService : IPdfService
             using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
             
             // Draw the image on the page
-            Console.WriteLine($"Drawing image at: X={x}, Y={pdfY}, W={width}, H={height}");
-            gfx.DrawImage(image, x, pdfY, width, height);
+            Console.WriteLine($"Drawing image at: X={pixelX}, Y={pdfY}, W={pixelWidth}, H={pixelHeight}");
+            gfx.DrawImage(image, pixelX, pdfY, pixelWidth, pixelHeight);
             Console.WriteLine($"Image drawn successfully");
             
             using var outputStream = new MemoryStream();

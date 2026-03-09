@@ -74,8 +74,19 @@
                                 <div class="signature-zones-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
                                     @foreach (var zone in pageZones.OrderBy(z => z.Order))
                                     {
-                                        // Position values are now stored as percentages (0.0 to 1.0)
-                                        // We'll convert to pixels using JavaScript on page load
+                                            // Position values are stored as percentages (0.0 to 1.0)
+                                        // Convert to pixels using page dimensions for display
+                                        var pixelX = zone.PositionX * pageWidth;
+                                        var pixelY = zone.PositionY * pageHeight;
+                                        var pixelWidth = zone.Width * pageWidth;
+                                        var pixelHeight = zone.Height * pageHeight;
+                                        
+                                        // Validate percentage values are in range
+                                        if (zone.PositionY > 1 || zone.PositionX > 1 || zone.Width > 1 || zone.Height > 1)
+                                        {
+                                            Console.WriteLine($"ERROR: Zone percentage out of range - X:{zone.PositionX}, Y:{zone.PositionY}, W:{zone.Width}, H:{zone.Height}");
+                                        }
+                                        
                                         var zoneState = zone.IsSigned ? "signed" : (zone.IsRequired ? "pending" : "pending");
                                         <div class="signature-zone @zoneState"
                                              id="zone-@zone.Id"
@@ -85,7 +96,7 @@
                                              data-zone-y="@zone.PositionY"
                                              data-zone-width="@zone.Width"
                                              data-zone-height="@zone.Height"
-                                             style="position: absolute; pointer-events: auto;">
+                                             style="position: absolute; left: @(pixelX)px; top: @(pixelY)px; width: @(pixelWidth)px; height: @(pixelHeight)px; pointer-events: auto;">
                                             <div class="signature-zone-label">
                                                 @(zone.Label ?? "Signer ici")
                                             </div>
@@ -108,8 +119,8 @@
                                                     <canvas id="canvas-@zone.Id" 
                                                             class="signature-canvas"
                                                             data-zone-id="@zone.Id"
-                                                            width="@((int)zone.Width)" 
-                                                            height="@((int)zone.Height)"></canvas>
+                                                            width="@((int)pixelWidth)" 
+                                                            height="@((int)pixelHeight)"></canvas>
                                                     <div class="signature-canvas-toolbar">
                                                         <button type="button" class="signature-toolbar-btn clear" onclick="clearSignature('@zone.Id')">
                                                             <i class="bi bi-x-lg"></i> Effacer
@@ -553,33 +564,86 @@
 
         // Convert zone positions from percentages to pixels on page load
         function renderZones() {
-            // Get all pdf page containers
-            const pageContainers = document.querySelectorAll('.pdf-page-container');
-            
             // Get all signature zones
             const zones = document.querySelectorAll('.signature-zone');
             zones.forEach(zone => {
                 const pageNum = zone.dataset.zonePage;
-                const x = parseFloat(zone.dataset.zoneX) || 0;
-                const y = parseFloat(zone.dataset.zoneY) || 0;
-                const width = parseFloat(zone.dataset.zoneWidth) || 0;
-                const height = parseFloat(zone.dataset.zoneHeight) || 0;
+                
+                // Use stored values directly as percentages (0-1 range)
+                // These are NOT divided by pageWidth/pageHeight - they are raw percentages
+                const percentX = parseFloat(zone.dataset.zoneX) || 0;
+                const percentY = parseFloat(zone.dataset.zoneY) || 0;
+                const percentWidth = parseFloat(zone.dataset.zoneWidth) || 0;
+                const percentHeight = parseFloat(zone.dataset.zoneHeight) || 0;
 
+                // Debug log: Show stored percentages (should be between 0 and 1)
+                console.log("Stored zone percent:", percentX, percentY);
+                
                 // Find the corresponding page container
                 const container = document.querySelector(`.pdf-page-container[data-page-number="${pageNum}"]`);
                 if (container) {
-                    const rect = container.getBoundingClientRect();
+                    // Get the actual PDF viewer embed element inside the container
+                    const pdfViewer = container.querySelector('.pdf-viewer');
+                    const rect = pdfViewer ? pdfViewer.getBoundingClientRect() : container.getBoundingClientRect();
                     
-                    // Convert from percentages to pixels using actual container dimensions
-                    zone.style.left = (x * rect.width) + 'px';
-                    zone.style.top = (y * rect.height) + 'px';
-                    zone.style.width = (width * rect.width) + 'px';
-                    zone.style.height = (height * rect.height) + 'px';
+                    // Console debugging for page rect
+                    console.log("Page rect:", rect);
+                    
+                    // Convert from percentages to pixels using actual PDF viewer dimensions
+                    // Multiply the percentage (0-1) by the dimension to get pixels
+                    const pixelX = percentX * rect.width;
+                    const pixelY = percentY * rect.height;
+                    const pixelWidth = percentWidth * rect.width;
+                    const pixelHeight = percentHeight * rect.height;
+                    
+                    console.log("Calculated pixel:", pixelX, pixelY);
+                    
+                    zone.style.left = pixelX + 'px';
+                    zone.style.top = pixelY + 'px';
+                    zone.style.width = pixelWidth + 'px';
+                    zone.style.height = pixelHeight + 'px';
                 }
             });
         }
 
         // Render zones after the page loads to ensure containers have their final dimensions
         window.addEventListener('load', renderZones);
+        
+        // Also render zones when PDF viewer has loaded (for embedded PDFs)
+        document.addEventListener('DOMContentLoaded', function() {
+            // Small delay to ensure embed has loaded
+            setTimeout(renderZones, 500);
+        });
+
+        // Save zone positions with anti-forgery token
+        async function saveZonePositions(zonesArray) {
+            console.log("Saving zones:", zonesArray);
+            
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            
+            try {
+                const response = await fetch('/Document/SaveZonePositions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify({ zones: zonesArray })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Zone positions saved:', result);
+                    return result;
+                } else {
+                    const error = await response.text();
+                    console.error('Error saving zone positions:', error);
+                    throw new Error(error);
+                }
+            } catch (error) {
+                console.error('Error saving zone positions:', error);
+                throw error;
+            }
+        }
     </script>
 }

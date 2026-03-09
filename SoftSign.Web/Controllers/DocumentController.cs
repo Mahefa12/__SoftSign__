@@ -248,6 +248,10 @@ public class DocumentController : Controller
             _logger.LogInformation("document.Id: {DocumentId}", document.Id);
             _logger.LogInformation("=== END SIGNATURE ZONES DEBUG ===");
 
+            // Get page height for Y coordinate conversion (PDF uses bottom-left origin)
+            var (pdfPageWidth, pdfPageHeight) = await _pdfService.GetPageSizeAsync(pdfBytes, 1);
+            _logger.LogInformation("DEBUG: PDF page dimensions: {Width} x {Height}", pdfPageWidth, pdfPageHeight);
+
             // Save signature zones if provided
             if (!string.IsNullOrEmpty(signatureZones))
             {
@@ -264,6 +268,7 @@ public class DocumentController : Controller
                             double width = 200, height = 80;
                             Guid stepId = Guid.Empty;
                             string? label = null;
+                            int pageNumber = 1;
                             
                             if (zone.TryGetProperty("x", out var xElement))
                                 x = xElement.GetDouble();
@@ -273,6 +278,8 @@ public class DocumentController : Controller
                                 width = widthElement.GetDouble();
                             if (zone.TryGetProperty("height", out var heightElement))
                                 height = heightElement.GetDouble();
+                            if (zone.TryGetProperty("pageNumber", out var pageNumberElement))
+                                pageNumber = pageNumberElement.GetInt32();
                             if (zone.TryGetProperty("stepId", out var stepIdElement) && stepIdElement.ValueKind != System.Text.Json.JsonValueKind.Null)
                             {
                                 if (Guid.TryParse(stepIdElement.GetString(), out var parsedStepId))
@@ -281,14 +288,27 @@ public class DocumentController : Controller
                             if (zone.TryGetProperty("signerRole", out var labelElement) && labelElement.ValueKind != System.Text.Json.JsonValueKind.Null)
                                 label = labelElement.GetString();
                             
+                            // Values from frontend are already percentages (0-1 range)
+                            // Store them directly without any conversion
+                            var percentX = x;
+                            var percentY = y;
+                            var percentWidth = width;
+                            var percentHeight = height;
+                            
+                            // Debug: Log the received values
+                            Console.WriteLine($"Saving zone percent X={percentX} Y={percentY}");
+                            _logger.LogInformation("ZONE COORDINATES: ReceivedX={X}, ReceivedY={Y} -> StoredX={PercentX}, StoredY={PercentY}",
+                                x, y, percentX, percentY);
+                            
+                            // Store as percentages (not PDF coordinates)
                             var entity = new SignatureZone
                             {
                                 DocumentId = document.Id,
-                                PageNumber = 1,
-                                PositionX = x,
-                                PositionY = y,
-                                Width = width,
-                                Height = height,
+                                PageNumber = pageNumber,
+                                PositionX = percentX,
+                                PositionY = percentY,
+                                Width = percentWidth,
+                                Height = percentHeight,
                                 IsRequired = true,
                                 Order = order++,
                                 Label = label ?? $"Zone {order}"
@@ -696,5 +716,54 @@ public class DocumentController : Controller
         }
 
         return Ok(zones);
+    }
+
+    // API endpoint to save zone positions
+    [HttpPost("Document/SaveZonePositions")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveZonePositions([FromBody] List<ZonePositionDto> zones)
+    {
+        try
+        {
+            _logger.LogInformation("=== SAVE ZONE POSITIONS DEBUG ===");
+            _logger.LogInformation("Received {Count} zones", zones?.Count ?? 0);
+
+            if (zones == null || !zones.Any())
+            {
+                _logger.LogWarning("No zones provided in request");
+                return BadRequest(new { error = "No zones provided" });
+            }
+
+            foreach (var zone in zones)
+            {
+                _logger.LogInformation("Incoming zone: {ZoneId} X:{X} Y:{Y} StepId:{StepId} SignerRole:{SignerRole}", 
+                    zone.ZoneId, zone.X, zone.Y, zone.StepId, zone.SignerRole);
+
+                var dbZone = await _dbContext.SignatureZones
+                    .FirstOrDefaultAsync(z => z.Id == zone.ZoneId);
+
+                if (dbZone == null)
+                {
+                    _logger.LogWarning("Zone NOT FOUND in DB: {ZoneId}", zone.ZoneId);
+                    continue;
+                }
+
+                _logger.LogInformation("Updating zone {ZoneId} - Old X:{OldX} Y:{OldY}, New X:{NewX} Y:{NewY}", 
+                    zone.ZoneId, dbZone.PositionX, dbZone.PositionY, zone.X, zone.Y);
+
+                dbZone.PositionX = zone.X;
+                dbZone.PositionY = zone.Y;
+            }
+
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Zone positions saved successfully");
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving zone positions");
+            return StatusCode(500, new { error = "Error saving zone positions" });
+        }
     }
 }
